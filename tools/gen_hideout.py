@@ -1,7 +1,7 @@
 """Generates game/data/maps/hideout.txt, the Bapas hideout in an abandoned metro station.
 
 Legend on top of the raid maps': A leader, W weapons trader, D doctor, J junk dealer,
-I informant, S stash, B donation box, X sortie gate.
+I informant, S stash, B donation box, C core decoder, X sortie gate.
 """
 from pathlib import Path
 
@@ -35,7 +35,7 @@ rect(W - 1, 11, W - 1, 14, "X")
 rect(W - 2, 11, W - 2, 14, "X")
 
 for (x, y, c) in [(21, 3, "A"), (4, 2, "W"), (4, 23, "D"), (39, 2, "J"), (39, 23, "I"),
-                  (14, 22, "S"), (28, 3, "B"), (6, 12, "P"),
+                  (14, 22, "S"), (28, 3, "B"), (34, 3, "C"), (6, 12, "P"),
                   (12, 2, "L"), (30, 2, "L"), (12, 23, "L"), (30, 23, "L"), (21, 6, "f"), (21, 19, "f")]:
     g[y][x] = c
 

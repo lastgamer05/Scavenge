@@ -12,6 +12,11 @@ var shooter: Enemy
 
 func _initialize() -> void:
 	SaveData.enabled = false
+	SaveData.loaded = false
+	SaveData.ensure_loaded()
+	SaveData.prologue_done = true
+	SaveData.quest = 3  # "옛 팀장": spawns Leon and his guards
+	SaveData.quest_given = true
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 
@@ -71,6 +76,7 @@ func _process(_delta: float) -> bool:
 		58:
 			_check(game.level.roofs[0].target_alpha == 0.0, "roof over Toa's building fades")
 			_check(game.level.roofs[1].target_alpha == 1.0, "other roofs stay")
+			_test_story()
 			for e in _enemies():
 				if not e.is_dead() and WeaponDB.is_gun(e.weapon_id):
 					shooter = e
@@ -146,3 +152,21 @@ func _test_extraction(p: Player) -> void:
 	flare.flare_t = 0.01
 	flare._process(0.02)
 	_check(flare.flare_state == "ready" and flare.is_open(game), "helicopter arrives and opens")
+
+
+func _test_story() -> void:
+	var boss: Enemy = null
+	for e in _enemies():
+		if e.boss_name != "":
+			boss = e
+	_check(boss != null and boss.hp == 3 and boss.centra, "quest 4 spawns Leon in Centra uniform")
+	_check(not get_nodes_in_group("objectives").is_empty(), "quest target gets a marker")
+	var caches := get_nodes_in_group("containers").filter(func(c): return c.kind == "cache")
+	_check(caches.size() == 4, "four recorder caches in the ruins")
+	boss.kill(Vector2.RIGHT)
+	boss.kill(Vector2.RIGHT)
+	_check(not boss.is_dead() and boss.hp == 1, "Leon survives two hits")
+	boss.kill(Vector2.RIGHT)
+	_check(boss.is_dead(), "third hit drops Leon")
+	var corpse = game.nearest_container(boss.global_position, 40.0)
+	_check(corpse != null and corpse.grid.items.any(func(i): return i["id"] == "dogtag"), "Leon's corpse holds the dog tag")

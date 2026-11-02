@@ -22,7 +22,7 @@ func setup(container_kind: String, fill_loot: bool = true) -> void:
 func _ready() -> void:
 	add_to_group("containers")
 	var prop: String = {"crate": "crate", "locker": "locker", "safe": "safe", "pile": "pile",
-		"stash": "locker", "donate": "crate"}.get(kind, "")
+		"stash": "locker", "donate": "crate", "cache": "pile"}.get(kind, "")
 	if prop != "":
 		sprite = Sprite2D.new()
 		sprite.texture = PixelArt.texture("prop:" + prop)

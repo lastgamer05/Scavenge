@@ -131,7 +131,7 @@ func interact() -> void:
 			game.inventory.open(target["node"])
 		"flare":
 			target["node"].fire_flare(game)
-		"npc", "exit":
+		"npc", "exit", "story":
 			target["node"].interact()
 
 

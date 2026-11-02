@@ -24,6 +24,24 @@ const LINES := {
 	],
 }
 
+## The Bapas terminal the core is plugged into. Shows every decoded file and recording.
+class Decoder extends Node2D:
+	var hideout: Node
+
+	func _ready() -> void:
+		add_to_group("npcs")
+		var spr := Sprite2D.new()
+		spr.texture = PixelArt.texture("prop:safe")
+		spr.scale = Vector2.ONE * CharacterRig.SCALE
+		add_child(spr)
+
+	func title() -> String:
+		return "코어 해독기"
+
+	func interact() -> void:
+		hideout.show_memories()
+
+
 var level: Level
 var player: Player
 var entities: Node2D
@@ -35,7 +53,7 @@ var donate_box: LootContainer
 var combat := false
 var state := "play"
 var extract_t := 0.0
-var dialog_npc: Npc = null
+var dialog_npc: Node2D = null  # whoever the dialogue box belongs to (NPC or decoder)
 var dialog_lines: Array = []
 var dialog_i := 0
 var exit_cells: Array = []
@@ -77,6 +95,11 @@ func _ready() -> void:
 				stash = _spawn_box("stash", pos)
 			elif ch == "B":
 				donate_box = _spawn_box("donate", pos)
+			elif ch == "C":
+				var d := Decoder.new()
+				d.hideout = self
+				d.position = pos
+				entities.add_child(d)
 
 	player = Player.new()
 	player.game = self
@@ -100,7 +123,16 @@ func _ready() -> void:
 	hud.add_child(inventory)
 	_apply_level()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if not SaveData.prologue_done:
+		# A fresh save starts at ground zero, not here.
+		_start_raid.call_deferred("prologue")
+		return
 	_report_last_raid()
+	_collect_recorders()
+	if SaveData.intro_pending:
+		SaveData.intro_pending = false
+		_persist()
+		_open_dialog(_leader(), Story.INTRO.duplicate())
 
 
 func _spawn_light(kind: String, c: Vector2i) -> void:
@@ -227,28 +259,116 @@ func interact_target(pos: Vector2) -> Dictionary:
 
 ## Sortie: called by Player.interact on the gate cells.
 func interact() -> void:
+	_start_raid("ruins")
+
+
+func _start_raid(which: String) -> void:
 	_persist()
+	SaveData.next_raid = which
 	Engine.time_scale = 1.0
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 
+func _leader() -> Npc:
+	for n in get_tree().get_nodes_in_group("npcs"):
+		if n is Npc and n.role == "leader":
+			return n
+	return null
+
+
 func talk_to(npc: Npc) -> void:
-	dialog_npc = npc
-	dialog_lines = LINES[npc.role].duplicate()
-	if npc.role == "leader":
-		var next := SaveData.next_level_at()
-		var status := "바파스 레벨 %d." % SaveData.level()
-		if next > 0:
-			status += " 다음 레벨까지 기부 $%d 남았다." % (next - SaveData.donated)
-		dialog_lines.append(status)
-	dialog_i = 0
+	var lines: Array = LINES[npc.role].map(func(l): return [npc.title(), l])
 	if npc.counter != null:
 		# Traders just say their line and open the counter; the dialogue box would cover it.
-		hud.toast("%s: %s" % [npc.title(), dialog_lines[0]])
-		dialog_npc = null
+		hud.toast("%s: %s" % lines[0])
 		inventory.open(npc.counter)
 		return
-	hud.show_dialog(npc.title(), dialog_lines[0])
+	if npc.role == "leader":
+		lines = _leader_lines(npc.title())
+	_open_dialog(npc, lines)
+
+
+## The leader hands out the main quests and takes the items when Toa brings them.
+func _leader_lines(who: String) -> Array:
+	var lines := []
+	var q := Story.quest()
+	if q.is_empty():
+		lines.append("지금은 맡길 일이 없다. 다음 소식을 기다려.")
+	elif not SaveData.quest_given:
+		SaveData.quest_given = true
+		lines.append_array(q["give"])
+		hud.toast("새 임무: %s" % q["title"])
+	elif _has_items(q["need"]):
+		_take_items(q["need"])
+		SaveData.money += q["reward"]
+		if q["memory"] != "" and not SaveData.memories.has(q["memory"]):
+			SaveData.memories.append(q["memory"])
+		lines.append_array(q["done"])
+		lines.append("보수 $%d. 받아 둬." % q["reward"])
+		hud.toast("임무 완료: %s  +$%d" % [q["title"], q["reward"]])
+		SaveData.quest += 1
+		SaveData.quest_given = false
+	else:
+		lines.append("아직이다. %s." % q["objective"])
+	var next := SaveData.next_level_at()
+	var status := "바파스 레벨 %d." % SaveData.level()
+	if next > 0:
+		status += " 다음 레벨까지 기부 $%d 남았다." % (next - SaveData.donated)
+	lines.append(status)
+	_persist()
+	return lines.map(func(l): return [who, l])
+
+
+func _all_items() -> Array:
+	return stash.grid.items + player.bag.items + player.pouch.items
+
+
+func _has_items(need: Dictionary) -> bool:
+	for id in need:
+		if _all_items().filter(func(i): return i["id"] == id).size() < need[id]:
+			return false
+	return true
+
+
+func _take_items(need: Dictionary) -> void:
+	for id in need:
+		var left: int = need[id]
+		for grid in [player.bag, player.pouch, stash.grid]:
+			for item in grid.items.duplicate():
+				if left > 0 and item["id"] == id:
+					grid.remove(item)
+					left -= 1
+
+
+## Recordings found in raids turn into memories as soon as Toa is home.
+func _collect_recorders() -> void:
+	for grid in [player.bag, player.pouch, stash.grid]:
+		for item in grid.items.duplicate():
+			if str(item["id"]).begins_with("recorder_"):
+				grid.remove(item)
+				if not SaveData.memories.has(item["id"]):
+					SaveData.memories.append(item["id"])
+					hud.toast("기억 조각: %s — 코어 해독기에서 확인" % ItemDB.get_data(item["id"])["name"])
+	_persist()
+
+
+func show_memories() -> void:
+	var lines := []
+	for id in SaveData.memories:
+		var m: Array = Story.MEMORIES[id]
+		lines.append([m[0], m[1]])
+	if lines.is_empty():
+		lines.append(["코어 해독기", "아직 해독된 내용이 없다. 리더의 일을 하거나, 폐허에서 녹음기를 찾아라."])
+	for n in get_tree().get_nodes_in_group("npcs"):
+		if n is Decoder:
+			_open_dialog(n, lines)
+
+
+func _open_dialog(owner: Node2D, lines: Array) -> void:
+	dialog_npc = owner
+	dialog_lines = lines
+	dialog_i = 0
+	hud.show_dialog(lines[0][0], lines[0][1])
 
 
 func _advance_dialog() -> void:
@@ -256,7 +376,7 @@ func _advance_dialog() -> void:
 	if dialog_i >= dialog_lines.size():
 		_end_dialog()
 	else:
-		hud.show_dialog(dialog_npc.title(), dialog_lines[dialog_i])
+		hud.show_dialog(dialog_lines[dialog_i][0], dialog_lines[dialog_i][1])
 
 
 func _end_dialog() -> void:
@@ -273,7 +393,7 @@ func _container_of(grid) -> LootContainer:
 		if c.grid == grid:
 			return c
 	for n in get_tree().get_nodes_in_group("npcs"):
-		if n.counter != null and n.counter.grid == grid:
+		if n is Npc and n.counter != null and n.counter.grid == grid:
 			return n.counter
 	return null
 
@@ -303,6 +423,9 @@ func transfer(item: Dictionary, from, to) -> String:
 		return "ok"
 	if to is String:
 		hud.toast("은신처에서는 버릴 수 없다. 창고에 넣자.")
+		return "deny"
+	if dst != null and dst.kind != "stash" and Story.is_story_item(item["id"]):
+		hud.toast("중요한 물건이다. 넘길 수 없다. 리더에게 가져가자.")
 		return "deny"
 	if src != null and src.kind == "weapon_shop":
 		if dst != null:

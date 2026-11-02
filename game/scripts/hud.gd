@@ -39,26 +39,34 @@ class ZoneMarkers extends Control:
 		var xf := get_viewport().get_canvas_transform()
 		var view := Rect2(Vector2(40, 90), size - Vector2(80, 180))
 		var me: Vector2 = game.player.global_position
-		for z in get_tree().get_nodes_in_group("extracts"):
-			var col := Color(0.4, 1.0, 0.55) if z.is_open(game) or z.kind == "flare" and z.flare_state == "idle" else Color(1.0, 0.55, 0.45)
-			if z.kind == "flare" and z.flare_state == "gone":
-				col = Color(0.6, 0.6, 0.6)
-			var p: Vector2 = xf * z.global_position
-			var dist := int(me.distance_to(z.global_position) / Level.CELL)
-			var label := "%s  %dm" % [z.title, dist]
-			if view.has_point(p):
-				draw_string(font, p + Vector2(-60, -36), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
-				continue
-			var center := size * 0.5
-			var dir := (p - center).normalized()
-			var edge := center + dir * minf(absf(view.size.x * 0.5 / dir.x) if dir.x != 0.0 else 1e9,
-				absf(view.size.y * 0.5 / dir.y) if dir.y != 0.0 else 1e9)
-			var tip := edge + dir * 12.0
-			draw_colored_polygon(PackedVector2Array([tip, edge + dir.rotated(2.5) * 10.0, edge + dir.rotated(-2.5) * 10.0]), col)
-			draw_string(font, edge - dir * 22.0 + Vector2(-60, 4), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
+		for z in get_tree().get_nodes_in_group("extracts") + get_tree().get_nodes_in_group("objectives"):
+			var col := Color(1.0, 0.85, 0.3)
+			if z.kind != "objective":
+				col = Color(0.4, 1.0, 0.55) if z.is_open(game) or z.kind == "flare" and z.flare_state == "idle" else Color(1.0, 0.55, 0.45)
+				if z.kind == "flare" and z.flare_state == "gone":
+					col = Color(0.6, 0.6, 0.6)
+			_draw_marker(font, view, xf, me, z, col)
 
+	## A label over a visible point, or an arrow at the screen edge pointing toward it.
+	func _draw_marker(font: Font, view: Rect2, xf: Transform2D, me: Vector2, z: Node2D, col: Color) -> void:
+		var p: Vector2 = xf * z.global_position
+		var dist := int(me.distance_to(z.global_position) / Level.CELL)
+		var label := "%s  %dm" % [z.title, dist]
+		if view.has_point(p):
+			draw_string(font, p + Vector2(-60, -36), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
+			return
+		var center := size * 0.5
+		var dir := (p - center).normalized()
+		var edge := center + dir * minf(absf(view.size.x * 0.5 / dir.x) if dir.x != 0.0 else 1e9,
+			absf(view.size.y * 0.5 / dir.y) if dir.y != 0.0 else 1e9)
+		var tip := edge + dir * 12.0
+		draw_colored_polygon(PackedVector2Array([tip, edge + dir.rotated(2.5) * 10.0, edge + dir.rotated(-2.5) * 10.0]), col)
+		draw_string(font, edge - dir * 22.0 + Vector2(-60, 4), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
 
 var game: Node
+var subtitle_label: Label
+var subtitle_t := 0.0
+var objective_label: Label
 var slots_label: Label
 var info_label: Label
 var prompt_label: Label
@@ -86,6 +94,15 @@ func _ready() -> void:
 	hint.offset_bottom = -12
 	hint.text = "WASD 이동   좌클릭 공격   우클릭 던지기   E 줍기/뒤지기/처형   Tab 가방   Q 무기 교체   Shift 멀리 보기"
 	hint.modulate = Color(1, 1, 1, 0.7)
+	subtitle_label = _centered(22, 0.84)
+	subtitle_label.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
+	objective_label = _label(11, Vector2(0, 0))
+	objective_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	objective_label.offset_left = -520
+	objective_label.offset_right = -20
+	objective_label.offset_top = 52
+	objective_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	objective_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
 	var markers := ZoneMarkers.new()
 	markers.hud = self
 	markers.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -118,6 +135,11 @@ func _centered(font_size: int, y_ratio: float) -> Label:
 	return l
 
 
+func say(who: String, text: String) -> void:
+	subtitle_label.text = "%s: %s" % [who, text]
+	subtitle_t = 5.0
+
+
 func toast(text: String) -> void:
 	toast_label.text = text
 	toast_t = 1.6
@@ -146,6 +168,9 @@ func _process(delta: float) -> void:
 	var left := maxi(0, ceili(game.time_left))
 	info_label.text = "처치 %d/%d    남은 시간 %02d:%02d" % [game.kills, game.total_enemies, left / 60, left % 60]
 	info_label.modulate = Color(1, 0.45, 0.4) if game.time_left < game.RAID_TIME - game.REINFORCE_AFTER else Color.WHITE
+	if game.mode == "prologue":
+		info_label.text = "작전 '회수' — 붕괴 진원지"
+		info_label.modulate = Color.WHITE
 
 	prompt_label.text = ""
 	if game.state == "play":
@@ -160,6 +185,8 @@ func _process(delta: float) -> void:
 				prompt_label.text = "E  줍기: %s%s" % [wd["name"], extra]
 			"search":
 				prompt_label.text = "E  뒤지기: %s" % target["node"].title
+			"story":
+				prompt_label.text = target["node"].interact_hint(p.global_position)
 		if game.active_zone != null:
 			var reason: String = game.active_zone.block_reason(game)
 			prompt_label.text = "[%s]  %s" % [game.active_zone.title, reason if reason != "" else "탈출 가능"]
@@ -180,3 +207,6 @@ func _process(delta: float) -> void:
 
 	toast_t -= delta
 	toast_label.modulate.a = clampf(toast_t, 0.0, 1.0)
+	subtitle_t -= delta
+	subtitle_label.modulate.a = clampf(subtitle_t, 0.0, 1.0)
+	objective_label.text = Story.objective_text() if game.mode == "ruins" else ""

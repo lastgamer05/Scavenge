@@ -9,6 +9,8 @@ var failures := 0
 func _initialize() -> void:
 	SaveData.enabled = false
 	SaveData.loaded = false
+	SaveData.ensure_loaded()
+	SaveData.prologue_done = true
 	hideout = load("res://scenes/hideout.tscn").instantiate()
 	root.add_child(hideout)
 
@@ -21,7 +23,7 @@ func _check(ok: bool, msg: String) -> void:
 
 func _npc(role: String) -> Npc:
 	for n in get_nodes_in_group("npcs"):
-		if n.role == role:
+		if n is Npc and n.role == role:
 			return n
 	return null
 
@@ -32,7 +34,7 @@ func _process(_delta: float) -> bool:
 		return false
 	var h = hideout
 	var p: Player = h.player
-	_check(get_nodes_in_group("npcs").size() == 5, "five Bapas NPCs")
+	_check(get_nodes_in_group("npcs").filter(func(n): return n is Npc).size() == 5, "five Bapas NPCs")
 	_check(h.stash.grid.items.size() == 2, "new save starts with a pistol and knife in the stash")
 	_check(SaveData.money == 300, "new save starts with $300")
 
@@ -69,6 +71,34 @@ func _process(_delta: float) -> bool:
 	_check(SaveData.bag.size() == 1 and SaveData.slots[0]["id"] == "smg", "extraction keeps the loadout")
 	_check(SaveData.raids == 2 and SaveData.extracts == 1, "raid counters")
 
+	_test_story(h, p)
 	print("hideout finished: %d failure(s)" % failures)
 	quit(1 if failures > 0 else 0)
 	return false
+
+
+func _test_story(h, p: Player) -> void:
+	SaveData.quest = 0
+	SaveData.quest_given = false
+	var leader: Npc = _npc("leader")
+	leader.interact()
+	_check(SaveData.quest_given, "leader gives the first quest")
+	_check(Story.objective_text().contains("의약품"), "objective shows on the HUD")
+	h._end_dialog()
+	leader.interact()
+	_check(SaveData.quest == 0, "quest not done without the items")
+	h._end_dialog()
+	p.bag.items.clear()
+	p.bag.auto_add(ItemDB.make("meds"))
+	h.stash.grid.auto_add(ItemDB.make("meds"))
+	var money := SaveData.money
+	leader.interact()
+	_check(SaveData.quest == 1 and SaveData.money == money + 400, "delivering two meds completes quest 1 (+$400)")
+	_check(not h._all_items().any(func(i): return i["id"] == "meds"), "leader takes the meds from bag and stash")
+	h._end_dialog()
+	_check(h.transfer(ItemDB.make("dogtag"), p.bag, _npc("junk").counter.grid) == "deny", "story items cannot be sold")
+	p.bag.auto_add(ItemDB.make("recorder_2"))
+	h._collect_recorders()
+	_check(SaveData.memories.has("recorder_2") and not p.bag.items.any(func(i): return i["id"] == "recorder_2"), "recorders become memories at home")
+	h.show_memories()
+	_check(h.dialog_npc != null and h.dialog_lines.size() == SaveData.memories.size(), "decoder lists unlocked memories")

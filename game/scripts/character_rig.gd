@@ -8,7 +8,7 @@ const SCALE := 2.0  # art pixel -> world units
 const SHEET_DIR := "res://assets/sprites/"
 const POSE_OF := {"pistol": "pistol", "silenced": "pistol", "smg": "rifle", "shotgun": "rifle",
 	"rifle": "rifle", "bat": "melee", "knife": "melee"}
-const BRIGHTNESS := {"pmc": 1.4}  # dark gear needs a lift to read under moonlight
+const BRIGHTNESS := {}  # per-sheet brightness lift; the regenerated sheets read fine as they are
 
 var key := ""
 var sheet := false

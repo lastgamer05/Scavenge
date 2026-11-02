@@ -55,6 +55,7 @@ jobs:
           ~/godot/godot --headless --path "$PROJECT_DIR" --script res://tests/run_tests.gd
           ~/godot/godot --headless --path "$PROJECT_DIR" --script res://tests/sim_test.gd
           ~/godot/godot --headless --path "$PROJECT_DIR" --script res://tests/hideout_test.gd
+          ~/godot/godot --headless --path "$PROJECT_DIR" --script res://tests/prologue_test.gd
 
       - name: Export
         run: |

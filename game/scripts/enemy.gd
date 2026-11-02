@@ -9,6 +9,7 @@ const HALF_FOV := 1.13  # ~65 degrees
 const CLOSE_SENSE := 48.0
 const REACTION := 0.45
 const SHOOT_RANGE := 340.0
+const LABEL_FONT := preload("res://assets/fonts/Galmuri11-Bold.ttf")
 
 var game: Node
 var level: Level
@@ -28,6 +29,8 @@ var idle_t := 0.0
 var swing_t := -1.0
 var home := Vector2.ZERO
 var death_dir := Vector2.RIGHT
+var hp := 1
+var boss_name := ""
 var centra := false  # Centra patrol (late-raid reinforcement) instead of a scavenger
 var rig: CharacterRig
 var mark_node: Node2D
@@ -232,6 +235,17 @@ func _recover() -> void:
 func kill(dir: Vector2) -> void:
 	if state == State.DEAD:
 		return
+	if hp > 1:
+		# Bosses soak hits: flinch, turn on the attacker, keep fighting.
+		hp -= 1
+		alerted = true
+		last_known = game.player.global_position
+		rig.modulate = Color(1.6, 0.6, 0.6)
+		get_tree().create_timer(0.12).timeout.connect(func(): if state != State.DEAD: rig.modulate = Color.WHITE)
+		if state != State.CHASE:
+			state = State.CHASE
+			react_t = 0.2
+		return
 	_drop_weapon(dir)
 	state = State.DEAD
 	death_dir = dir
@@ -316,6 +330,8 @@ func _set_mark(m: String) -> void:
 
 
 func _draw_mark() -> void:
+	if boss_name != "" and state != State.DEAD:
+		mark_node.draw_string(LABEL_FONT, Vector2(-30, -30), boss_name, HORIZONTAL_ALIGNMENT_CENTER, 60, 11, Color(1, 0.5, 0.4))
 	if mark == "":
 		return
 	var col := Color(1.0, 0.35, 0.3) if mark == "!" else (Color(1.0, 0.85, 0.3) if mark == "?" else Color(0.8, 0.8, 1.0))

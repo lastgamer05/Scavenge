@@ -20,6 +20,14 @@ static var bag: Array = []
 static var pouch: Array = []
 static var slots: Array = [null, null]
 static var last_result: Dictionary = {}
+# Story progress
+static var prologue_done := false
+static var intro_pending := false  # show the leader's intro on the next hideout visit
+static var quest := 0  # index into Story.QUESTS
+static var quest_given := false
+static var memories: Array = []  # memory ids unlocked (see Story.MEMORIES)
+static var flashbacks_seen: Array = []
+static var next_raid := "ruins"  # ruins or prologue
 
 
 static func ensure_loaded() -> void:
@@ -39,6 +47,12 @@ static func ensure_loaded() -> void:
 	stash = _items_in(data.get("stash", []))
 	bag = _items_in(data.get("bag", []))
 	pouch = _items_in(data.get("pouch", []))
+	prologue_done = bool(data.get("prologue_done", false))
+	intro_pending = bool(data.get("intro_pending", false))
+	quest = int(data.get("quest", 0))
+	quest_given = bool(data.get("quest_given", false))
+	memories = Array(data.get("memories", []))
+	flashbacks_seen = Array(data.get("flashbacks_seen", []))
 	var s: Array = data.get("slots", [null, null])
 	slots = [_item_in(s[0]) if s.size() > 0 else null, _item_in(s[1]) if s.size() > 1 else null]
 
@@ -53,13 +67,22 @@ static func _reset() -> void:
 	pouch = []
 	slots = [null, null]
 	last_result = {}
+	prologue_done = false
+	intro_pending = false
+	quest = 0
+	quest_given = false
+	memories = []
+	flashbacks_seen = []
+	next_raid = "ruins"
 
 
 static func save() -> void:
 	if not enabled:
 		return
 	var data := {"money": money, "donated": donated, "raids": raids, "extracts": extracts,
-		"stash": stash, "bag": bag, "pouch": pouch, "slots": slots}
+		"stash": stash, "bag": bag, "pouch": pouch, "slots": slots,
+		"prologue_done": prologue_done, "intro_pending": intro_pending, "quest": quest,
+		"quest_given": quest_given, "memories": memories, "flashbacks_seen": flashbacks_seen}
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(data))
@@ -123,6 +146,17 @@ static func store_loadout(bag_grid: InvGrid, pouch_grid: InvGrid, slot_items: Ar
 	pouch = pouch_grid.items.duplicate(true)
 	slots = [slot_items[0].duplicate() if slot_items[0] != null else null,
 		slot_items[1].duplicate() if slot_items[1] != null else null]
+
+
+## End of the prologue: Toa wakes up with nothing but the core in the safe pouch.
+static func finish_prologue() -> void:
+	prologue_done = true
+	intro_pending = true
+	bag = []
+	slots = [null, null]
+	pouch = [ItemDB.make("core")]
+	next_raid = "ruins"
+	save()
 
 
 ## End of a raid. Extracting keeps everything; dying keeps only the safe pouch.

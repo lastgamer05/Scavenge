@@ -7,6 +7,7 @@ const TECH := Color(0.3, 0.55, 0.8)
 const MEDICAL := Color(0.75, 0.3, 0.35)
 const SUPPLY := Color(0.5, 0.42, 0.3)
 const WEAPON := Color(0.45, 0.47, 0.5)
+const STORY := Color(0.55, 0.35, 0.75)
 
 const DATA := {
 	"cash": {"name": "현금 뭉치", "size": Vector2i(1, 1), "value": 150, "weight": 0.1, "color": VALUABLE},
@@ -28,6 +29,16 @@ const DATA := {
 	"rifle": {"name": "소총", "size": Vector2i(4, 1), "value": 700, "weight": 4.0, "color": WEAPON},
 	"bat": {"name": "야구방망이", "size": Vector2i(3, 1), "value": 60, "weight": 1.5, "color": WEAPON},
 	"knife": {"name": "칼", "size": Vector2i(1, 1), "value": 80, "weight": 0.3, "color": WEAPON},
+	# Story items: worthless to traders, delivered to the Bapas leader.
+	"core": {"name": "데이터 코어", "size": Vector2i(1, 1), "value": 0, "weight": 0.3, "color": STORY, "story": true},
+	"sealed_case": {"name": "봉인된 케이스", "size": Vector2i(2, 2), "value": 0, "weight": 3.0, "color": STORY, "story": true},
+	"decoder_part": {"name": "해독 회로", "size": Vector2i(2, 1), "value": 0, "weight": 0.8, "color": STORY, "story": true},
+	"centra_log": {"name": "센트라 작전 기록", "size": Vector2i(1, 1), "value": 0, "weight": 0.2, "color": STORY, "story": true},
+	"dogtag": {"name": "레온의 인식표", "size": Vector2i(1, 1), "value": 0, "weight": 0.1, "color": STORY, "story": true},
+	"recorder_1": {"name": "녹음기 #1", "size": Vector2i(1, 1), "value": 0, "weight": 0.2, "color": STORY, "story": true},
+	"recorder_2": {"name": "녹음기 #2", "size": Vector2i(1, 1), "value": 0, "weight": 0.2, "color": STORY, "story": true},
+	"recorder_3": {"name": "녹음기 #3", "size": Vector2i(1, 1), "value": 0, "weight": 0.2, "color": STORY, "story": true},
+	"recorder_4": {"name": "녹음기 #4", "size": Vector2i(1, 1), "value": 0, "weight": 0.2, "color": STORY, "story": true},
 }
 
 const LOOT := {
@@ -40,6 +51,7 @@ const LOOT := {
 	"corpse": {"title": "시체", "size": Vector2i(4, 3), "rolls": Vector2i(0, 2),
 		"pool": ["cash", "cans", "meds", "watch", "ammo_box"]},
 	"pile": {"title": "버린 물건", "size": Vector2i(6, 4), "rolls": Vector2i(0, 0), "pool": []},
+	"cache": {"title": "작은 꾸러미", "size": Vector2i(2, 2), "rolls": Vector2i(0, 0), "pool": []},
 	# Hideout: never filled with random loot.
 	"stash": {"title": "창고", "size": Vector2i(8, 6), "rolls": Vector2i(0, 0), "pool": []},
 	"weapon_shop": {"title": "무기상 진열대", "size": Vector2i(7, 5), "rolls": Vector2i(0, 0), "pool": []},

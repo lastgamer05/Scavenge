@@ -93,6 +93,9 @@ func _process(delta: float) -> void:
 	var next := SaveData.next_level_at()
 	var standing := "바파스 Lv.%d  (기부 %d%s)" % [SaveData.level(), SaveData.donated, " / %d" % next if next > 0 else ", 최고"]
 	info_label.text = "$%d\n%s\n출격 %d회 · 귀환 %d회" % [SaveData.money, standing, SaveData.raids, SaveData.extracts]
+	var obj := Story.objective_text()
+	if obj != "":
+		info_label.text += "\n\n임무 — " + obj
 
 	prompt_label.text = ""
 	if not hideout.inventory.visible:

@@ -1,7 +1,8 @@
 extends Node2D
 ## One raid: load the map, spawn everything, track kills, loot, death and extraction.
+## SaveData.next_raid picks the ruins or the scripted prologue at ground zero.
 
-const MAP_PATH := "res://data/maps/ruins.txt"
+const MAPS := {"ruins": "res://data/maps/ruins.txt", "prologue": "res://data/maps/facility.txt"}
 const EXTRACT_TIME := 3.0
 const ZOOM_OUTDOOR := 1.5  # x2 art scale = 3 screen pixels per art pixel
 const ZOOM_INDOOR := 2.0
@@ -32,6 +33,8 @@ var total_enemies := 0
 var shake := 0.0
 var extracted_value := 0
 var extracted_count := 0
+var mode := "ruins"
+var director: PrologueDirector = null
 
 
 func _ready() -> void:
@@ -39,11 +42,14 @@ func _ready() -> void:
 	Engine.time_scale = 1.0
 	randomize()
 	add_to_group("game")
+	SaveData.ensure_loaded()
+	mode = SaveData.next_raid if MAPS.has(SaveData.next_raid) else "ruins"
+	var map_text := FileAccess.get_file_as_string(MAPS[mode])
 	var moon := CanvasModulate.new()
 	moon.color = Lights.MOONLIGHT
 	add_child(moon)
 	level = Level.new()
-	level.load_from_file(MAP_PATH)
+	level.load_from_text(map_text)
 	add_child(level)
 	level.player_cell = level.player_cells.pick_random()
 
@@ -62,6 +68,8 @@ func _ready() -> void:
 	for c in level.fire_cells:
 		_spawn_light("fire", c)
 	for kind in level.extract_groups:
+		if mode == "prologue":
+			break  # the helipad is a story trigger, not an exit
 		var z := ExtractZone.new()
 		z.setup(kind, level.extract_groups[kind])
 		entities.add_child(z)
@@ -107,17 +115,30 @@ func _ready() -> void:
 	hud.add_child(inventory)
 	Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 
+	if mode == "prologue":
+		director = PrologueDirector.new()
+		add_child(director)
+		director.setup(self, map_text.replace("\r", "").split("\n"))
+	else:
+		Story.raid_setup(self)
+
 
 func _process(delta: float) -> void:
 	if state != "play" and (Input.is_action_just_pressed("restart") or Input.is_action_just_pressed("interact")):
-		_return_to_hideout()
+		if mode == "prologue":
+			get_tree().reload_current_scene()
+		else:
+			_return_to_hideout()
 		return
 	var cell := level.world_to_cell(player.global_position)
 	if state == "play":
 		run_time += delta
-		_tick_raid_clock(delta)
-		_tick_extraction(delta, cell)
+		if mode != "prologue":
+			_tick_raid_clock(delta)
+			_tick_extraction(delta, cell)
 	var inside := level.building_at(cell)
+	if mode == "ruins" and inside >= 0:
+		_check_flashback(inside)
 	for roof in level.roofs:
 		roof.target_alpha = 0.0 if roof.index == inside else 1.0
 
@@ -158,6 +179,46 @@ func price_hint(_item: Dictionary, _grid) -> String:
 func _return_to_hideout() -> void:
 	Engine.time_scale = 1.0
 	get_tree().change_scene_to_file("res://scenes/hideout.tscn")
+
+
+## Some places pull a memory out of Toa the first time they are entered.
+func _check_flashback(building: int) -> void:
+	for key in Story.FLASHBACK_CELLS:
+		if SaveData.flashbacks_seen.has(key) or level.building_at(Story.FLASHBACK_CELLS[key]) != building:
+			continue
+		SaveData.flashbacks_seen.append(key)
+		hud.say("토아의 기억", Story.FLASHBACKS[key])
+
+
+func add_objective(pos: Vector2, title: String) -> void:
+	var m := StoryMarker.new()
+	m.title = title
+	m.position = pos
+	entities.add_child(m)
+
+
+## Leon, now in Centra uniform: takes three hits and carries the dog tag.
+func spawn_boss(pos: Vector2) -> void:
+	var e := Enemy.new()
+	e.game = self
+	e.level = level
+	e.weapon_id = "rifle"
+	e.centra = true
+	e.hp = 3
+	e.boss_name = "레온"
+	e.position = pos
+	entities.add_child(e)
+	total_enemies += 1
+	add_objective(pos, "레온")
+	for i in 3:
+		var guard := Enemy.new()
+		guard.game = self
+		guard.level = level
+		guard.weapon_id = ["smg", "pistol", "shotgun"][i]
+		guard.centra = true
+		guard.position = level.random_floor_near(pos, 3)
+		entities.add_child(guard)
+		total_enemies += 1
 
 
 func _spawn_light(kind: String, c: Vector2i) -> void:
@@ -261,6 +322,8 @@ func interact_target(pos: Vector2) -> Dictionary:
 	var downed = nearest_downed(pos, Player.EXECUTE_RANGE)
 	if downed != null:
 		return {"type": "execute", "node": downed}
+	if director != null and director.interact_hint(pos) != "":
+		return {"type": "story", "node": director}
 	var zone := zone_at(level.world_to_cell(pos))
 	if zone != null and zone.kind == "flare" and zone.flare_state == "idle":
 		return {"type": "flare", "node": zone}
@@ -394,6 +457,9 @@ func on_enemy_killed(e: Enemy, dir: Vector2) -> void:
 	entities.move_child(e, 0)
 	var corpse := LootContainer.new()
 	corpse.setup("corpse")
+	if e.boss_name != "":
+		corpse.grid.auto_add(ItemDB.make("dogtag"))
+		toast("레온이 쓰러졌다. 인식표를 챙기자.")
 	corpse.position = e.global_position
 	entities.add_child(corpse)
 	add_shake(5.0)
@@ -405,6 +471,9 @@ func on_player_died(dir: Vector2) -> void:
 	state = "dead"
 	extract_t = 0.0
 	inventory.close()
+	if mode == "prologue":
+		death_reason = "작전 실패 — 다시 시도"
+		return
 	SaveData.record_raid(false, player.bag, player.pouch, player.slots, carried_value())
 	decals.add_blood(player.global_position, dir)
 	add_shake(12.0)
