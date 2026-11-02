@@ -1,0 +1,164 @@
+class_name Player
+extends CharacterBody2D
+## Toa. Two quick slots, no reload: shoot, throw when empty, grab the next gun.
+
+const SPEED := 230.0
+const PICKUP_RANGE := 40.0
+const EXECUTE_RANGE := 38.0
+
+var game: Node
+var alive := true
+var slots: Array = [null, null]  # each null or {"id": String, "ammo": int}
+var current := 0
+var fire_t := 0.0
+var swing_t := 0.0
+var aim := 0.0
+var death_dir := Vector2.RIGHT
+
+
+func _ready() -> void:
+	collision_layer = 2
+	collision_mask = 1
+	var shape := CircleShape2D.new()
+	shape.radius = 10.0
+	var cs := CollisionShape2D.new()
+	cs.shape = shape
+	add_child(cs)
+
+
+func _physics_process(delta: float) -> void:
+	if not alive:
+		return
+	velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * SPEED
+	move_and_slide()
+	aim = (get_global_mouse_position() - global_position).angle()
+	fire_t -= delta
+	swing_t = maxf(0.0, swing_t - delta)
+
+	var w = slots[current]
+	var wd := WeaponDB.get_data(current_id())
+	var wants_fire: bool = Input.is_action_just_pressed("fire") or (wd.get("auto", false) and Input.is_action_pressed("fire"))
+	if wants_fire and fire_t <= 0.0:
+		_attack(w, wd)
+	if Input.is_action_just_pressed("throw") and w != null:
+		_throw()
+	if Input.is_action_just_pressed("interact"):
+		_interact()
+	if Input.is_action_just_pressed("swap"):
+		current = 1 - current
+	if Input.is_action_just_pressed("slot_1"):
+		current = 0
+	if Input.is_action_just_pressed("slot_2"):
+		current = 1
+	queue_redraw()
+
+
+func current_id() -> String:
+	var w = slots[current]
+	return "fists" if w == null else w["id"]
+
+
+func aim_dir() -> Vector2:
+	return Vector2.from_angle(aim)
+
+
+func _attack(w, wd: Dictionary) -> void:
+	if wd["melee"]:
+		fire_t = wd["cooldown"]
+		swing_t = 0.15
+		_melee(wd)
+		return
+	if w["ammo"] <= 0:
+		fire_t = 0.25
+		game.toast("탄 없음 — 우클릭으로 던지기")
+		return
+	w["ammo"] -= 1
+	fire_t = wd["cooldown"]
+	var muzzle: Vector2 = global_position + aim_dir() * (10.0 + wd["length"])
+	for i in wd["pellets"]:
+		var a := aim + deg_to_rad(randf_range(-wd["spread"], wd["spread"]))
+		game.spawn_bullet(muzzle, a, true, get_rid())
+	game.spawn_fx("flash", muzzle)
+	game.make_noise(global_position, wd["noise"], self)
+	game.add_shake(3.0 if wd["pellets"] == 1 else 7.0)
+
+
+func _melee(wd: Dictionary) -> void:
+	var reach: float = wd["range"] + 10.0
+	var half_arc := deg_to_rad(wd["arc"] * 0.5 + 10.0)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.is_dead():
+			continue
+		var to: Vector2 = e.global_position - global_position
+		if to.length() > reach or absf(angle_difference(aim, to.angle())) > half_arc:
+			continue
+		if not game.has_los(global_position, e.global_position):
+			continue
+		if wd["lethal"] or e.is_down():
+			e.kill(to.normalized())
+		else:
+			e.stun(to.normalized(), 2.2)
+		game.add_shake(4.0)
+	game.make_noise(global_position, wd["noise"], self)
+
+
+func _throw() -> void:
+	var w = slots[current]
+	slots[current] = null
+	game.spawn_pickup(w["id"], w["ammo"], global_position + aim_dir() * 14.0, aim_dir() * 720.0, true)
+
+
+func _interact() -> void:
+	var downed = game.nearest_downed(global_position, EXECUTE_RANGE)
+	if downed != null:
+		downed.kill((downed.global_position - global_position).normalized())
+		swing_t = 0.2
+		game.make_noise(global_position, 60.0, self)
+		return
+	var p = game.nearest_pickup(global_position, PICKUP_RANGE)
+	if p == null:
+		return
+	var item := {"id": p.weapon_id, "ammo": p.ammo}
+	if slots[current] == null:
+		slots[current] = item
+	elif slots[1 - current] == null:
+		current = 1 - current
+		slots[current] = item
+	else:
+		var old = slots[current]
+		game.spawn_pickup(old["id"], old["ammo"], global_position, Vector2.ZERO, false)
+		slots[current] = item
+	p.queue_free()
+
+
+func take_hit(dir: Vector2, _from_player: bool) -> void:
+	if not alive:
+		return
+	alive = false
+	death_dir = dir
+	collision_layer = 0
+	queue_redraw()
+	game.on_player_died(dir)
+
+
+func _draw() -> void:
+	if not alive:
+		draw_set_transform(death_dir * 6.0, death_dir.angle())
+		draw_rect(Rect2(-12, -8, 24, 16), Color(0.2, 0.45, 0.5))
+		draw_circle(Vector2(14, 0), 6.0, Color(0.85, 0.7, 0.55))
+		return
+	draw_set_transform(Vector2.ZERO, aim)
+	var id := current_id()
+	var wd := WeaponDB.get_data(id)
+	if id != "fists":
+		var swing := 0.0
+		if wd["melee"] and swing_t > 0.0:
+			swing = -1.2 + (0.15 - swing_t) / 0.15 * 2.4
+		draw_set_transform(Vector2.ZERO, aim + swing)
+		draw_rect(Rect2(6, 2, wd["length"], 4), WeaponDB.color_of(id))
+		draw_set_transform(Vector2.ZERO, aim)
+	elif swing_t > 0.0:
+		draw_circle(Vector2(16, 6), 4.0, Color(0.85, 0.7, 0.55))
+	draw_circle(Vector2.ZERO, 11.0, Color(0.25, 0.65, 0.75))
+	draw_circle(Vector2(2, 0), 6.0, Color(0.12, 0.12, 0.14))
+	draw_rect(Rect2(3, -3, 5, 6), Color(0.85, 0.7, 0.55))

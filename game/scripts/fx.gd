@@ -1,0 +1,29 @@
+class_name FX
+extends Node2D
+## Short-lived visual effect: noise ring, wall spark, muzzle flash, alert mark.
+
+var kind := "spark"
+var radius := 0.0
+var life := 0.25
+var t := 0.0
+
+
+func _process(delta: float) -> void:
+	t += delta
+	if t >= life:
+		queue_free()
+		return
+	queue_redraw()
+
+
+func _draw() -> void:
+	var k := t / life
+	match kind:
+		"noise":
+			draw_arc(Vector2.ZERO, radius * (0.2 + 0.8 * k), 0.0, TAU, 64, Color(1, 1, 1, 0.22 * (1.0 - k)), 2.0)
+		"spark":
+			for i in 5:
+				var d := Vector2.from_angle(i * 1.3 + radius)
+				draw_line(d * 2.0, d * (4.0 + 8.0 * k), Color(1, 0.85, 0.5, 1.0 - k), 1.5)
+		"flash":
+			draw_circle(Vector2.ZERO, 9.0 * (1.0 - k), Color(1, 0.85, 0.4, 1.0 - k))
