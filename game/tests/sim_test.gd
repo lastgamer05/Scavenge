@@ -57,7 +57,13 @@ func _process(_delta: float) -> bool:
 				if not e.is_dead() and WeaponDB.is_gun(e.weapon_id):
 					shooter = e
 					break
-			p.global_position = shooter.global_position + Vector2.from_angle(shooter.facing) * 100.0
+			# Stand in clear line of sight; an alerted enemy sees all around.
+			shooter.alerted = true
+			for i in 16:
+				var spot: Vector2 = shooter.global_position + Vector2.from_angle(i * TAU / 16.0) * 100.0
+				if not game.level.is_wall(game.level.world_to_cell(spot)) and game.has_los(shooter.global_position, spot):
+					p.global_position = spot
+					break
 		200:
 			_check(not p.alive and game.state == "dead", "enemy shoots player dead")
 			print("sim finished: %d failure(s)" % failures)
