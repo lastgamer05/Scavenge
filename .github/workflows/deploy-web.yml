@@ -61,6 +61,14 @@ jobs:
           ~/godot/godot --headless --path "$PROJECT_DIR" --export-release "Web" ../build/web/index.html
           test -f build/web/index.html
 
+      # Pages caches files for 10 minutes; a per-commit pack name makes new builds load immediately.
+      - name: Cache-bust game pack
+        run: |
+          pck="index-${GITHUB_SHA::8}.pck"
+          mv build/web/index.pck "build/web/$pck"
+          sed -i "s/\"index.pck\"/\"$pck\"/; s/GODOT_CONFIG = {/GODOT_CONFIG = {\"mainPack\":\"$pck\",/" build/web/index.html
+          grep -q "\"mainPack\":\"$pck\"" build/web/index.html
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
