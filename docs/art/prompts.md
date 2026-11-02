@@ -48,3 +48,11 @@ Sheets are imported with `game/tools/import_sprites.gd` (magenta key, majority-v
 # Sprite round 3 (symmetric overhead Toa)
 
 Feedback: the camera was not perfectly overhead; shoulders looked lopsided. Regenerated Toa with an exact orthographic, left-right symmetric prompt (gen_b as style reference). **F_sym_a chosen** and imported as toa_*. Enemies still use round 2 sheets.
+
+# Sprite round 4 (symmetric enemies)
+
+Scavenger, contractor and Centra sheets regenerated with F_sym_a as reference and the same symmetric prompt.
+The Centra sheet came back with white insignia on the armbands that resembled a real hate symbol, so it is imported
+with the `noemblem` option (near-white pixels painted over with the surrounding colour) and the source sheet is not
+kept in the repo. Future Centra prompts should ask for plain red armbands with no symbols.
+The importer also slides guns drawn in front of the hands back onto the body and drops stray bits from neighbouring poses.

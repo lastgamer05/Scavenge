@@ -2,7 +2,10 @@ extends SceneTree
 ## Turns a generated 2x2 character sheet (magenta background) into clean pixel sprites.
 ##
 ## Usage:
-##   godot --headless --path game --script res://tools/import_sprites.gd -- <sheet.png> <name>
+##   godot --headless --path game --script res://tools/import_sprites.gd -- <sheet.png> <name> [noemblem]
+##
+## "noemblem" paints over near-white insignia (generated armbands can come out with
+## symbols we do not want) using the surrounding colour.
 ##
 ## Writes res://assets/sprites/<name>_{unarmed,rifle,pistol,melee}.png. Each sprite is
 ## downsampled by majority vote onto a real pixel grid and padded so the body pivot
@@ -36,6 +39,9 @@ func _initialize() -> void:
 		var back := Rect2i(box.position, Vector2i(int(base.size.x * 0.3), box.size.y))
 		var pivot := Vector2(box.position.x + pivot_off, _centroid(img, back).y)
 		var out := _downsample(img, box, pivot, factor)
+		_attach_pieces(out)
+		if args.size() > 2 and args[2] == "noemblem":
+			_scrub_light(out)
 		var path: String = OUT_DIR + "%s_%s.png" % [args[1], POSES[i]]
 		out.save_png(ProjectSettings.globalize_path(path))
 		print("%s %dx%d" % [path, out.get_width(), out.get_height()])
@@ -119,3 +125,86 @@ func _downsample(img: Image, box: Rect2i, pivot: Vector2, f: float) -> Image:
 				for p in piece:
 					out.set_pixel(p.x, p.y, Color(0, 0, 0, 0))
 	return out
+
+
+func _pieces(img: Image) -> Array:
+	var size := img.get_size()
+	var seen := {}
+	var pieces := []
+	for j in size.y:
+		for i in size.x:
+			var start := Vector2i(i, j)
+			if img.get_pixel(i, j).a == 0.0 or seen.has(start):
+				continue
+			var piece: Array[Vector2i] = []
+			var stack: Array[Vector2i] = [start]
+			seen[start] = true
+			while not stack.is_empty():
+				var p: Vector2i = stack.pop_back()
+				piece.append(p)
+				for dy in range(-1, 2):
+					for dx in range(-1, 2):
+						var n := p + Vector2i(dx, dy)
+						if n.x >= 0 and n.y >= 0 and n.x < size.x and n.y < size.y and not seen.has(n) and img.get_pixel(n.x, n.y).a > 0.0:
+							seen[n] = true
+							stack.append(n)
+			pieces.append(piece)
+	pieces.sort_custom(func(a, b): return a.size() > b.size())
+	return pieces
+
+
+## Generated sheets sometimes draw the held gun a few pixels in front of the hands.
+## Slide every loose piece back along -x until it touches the body; drop pieces that never would.
+func _attach_pieces(img: Image) -> void:
+	var pieces := _pieces(img)
+	if pieces.size() < 2:
+		return
+	var body := {}
+	for p in pieces[0]:
+		body[p] = true
+	for k in range(1, pieces.size()):
+		var piece: Array = pieces[k]
+		var shift := -1
+		for s in range(1, 14):
+			if piece.any(func(p): return _touches(body, p - Vector2i(s, 0))):
+				shift = s
+				break
+		var colors := piece.map(func(p): return img.get_pixel(p.x, p.y))
+		for p in piece:
+			img.set_pixel(p.x, p.y, Color(0, 0, 0, 0))
+		if shift < 0:
+			continue  # not in front of the hands: stray bit from a neighbouring pose
+		for idx in piece.size():
+			var q: Vector2i = piece[idx] - Vector2i(shift, 0)
+			img.set_pixel(q.x, q.y, colors[idx])
+			body[q] = true
+
+
+static func _touches(body: Dictionary, p: Vector2i) -> bool:
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if body.has(p + Vector2i(dx, dy)):
+				return true
+	return false
+
+
+## Replace near-white pixels with the average of their coloured neighbours.
+func _scrub_light(img: Image) -> void:
+	var src: Image = img.duplicate()
+	for j in img.get_height():
+		for i in img.get_width():
+			var c := src.get_pixel(i, j)
+			if c.a == 0.0 or minf(c.r, minf(c.g, c.b)) < 0.62:
+				continue
+			var sum := Color(0, 0, 0, 0)
+			var n := 0
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2)]:
+				var q: Vector2i = Vector2i(i, j) + d
+				if q.x < 0 or q.y < 0 or q.x >= img.get_width() or q.y >= img.get_height():
+					continue
+				var nc := src.get_pixel(q.x, q.y)
+				if nc.a > 0.0 and minf(nc.r, minf(nc.g, nc.b)) < 0.62 and nc.get_luminance() > 0.12:
+					sum += nc
+					n += 1
+			if n > 0:
+				img.set_pixel(i, j, Color(sum.r / n, sum.g / n, sum.b / n, 1.0))
