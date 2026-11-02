@@ -32,6 +32,6 @@ static func make(color: Color, radius: float, energy: float, shadows: bool) -> P
 	l.energy = energy
 	l.range_item_cull_mask = 1
 	l.shadow_enabled = shadows
-	l.shadow_filter = Light2D.SHADOW_FILTER_PCF5
+	l.shadow_filter = Light2D.SHADOW_FILTER_NONE
 	l.shadow_item_cull_mask = 1
 	return l

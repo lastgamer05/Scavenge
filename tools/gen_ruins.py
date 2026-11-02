@@ -111,7 +111,7 @@ for x, y in [(8, 19), (44, 51), (62, 19), (31, 36), (75, 63), (96, 51), (75, 10)
         else:
             rect(x, y, x + 2, y + 1, "#")
 # Walkable debris
-for x, y in rng.sample([(x, y) for y in range(H) for x in range(W) if g[y][x] in ",="], 260):
+for x, y in rng.sample([(x, y) for y in range(H) for x in range(W) if g[y][x] in ",="], 140):
     put(x, y, "%")
 
 # Lamps: only a few still burn

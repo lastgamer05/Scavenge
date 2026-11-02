@@ -15,6 +15,7 @@ var fire_t := 0.0
 var swing_t := 0.0
 var aim := 0.0
 var death_dir := Vector2.RIGHT
+var rig: CharacterRig
 
 
 func _ready() -> void:
@@ -25,6 +26,8 @@ func _ready() -> void:
 	var cs := CollisionShape2D.new()
 	cs.shape = shape
 	add_child(cs)
+	rig = CharacterRig.new("toa")
+	add_child(rig)
 
 
 func _physics_process(delta: float) -> void:
@@ -34,7 +37,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	fire_t -= delta
 	swing_t = maxf(0.0, swing_t - delta)
-	queue_redraw()
+	_update_rig()
 	# With the bag open the mouse belongs to the UI; Toa can only walk.
 	if game.inventory.visible:
 		return
@@ -147,28 +150,15 @@ func take_hit(dir: Vector2, _from_player: bool) -> void:
 	alive = false
 	death_dir = dir
 	collision_layer = 0
-	queue_redraw()
+	rig.lie_down(dir.angle(), Color(0.65, 0.5, 0.5))
+	rig.position = dir * 6.0
 	game.on_player_died(dir)
 
 
-func _draw() -> void:
-	if not alive:
-		draw_set_transform(death_dir * 6.0, death_dir.angle())
-		draw_rect(Rect2(-12, -8, 24, 16), Color(0.2, 0.45, 0.5))
-		draw_circle(Vector2(14, 0), 6.0, Color(0.85, 0.7, 0.55))
-		return
-	draw_set_transform(Vector2.ZERO, aim)
+func _update_rig() -> void:
 	var id := current_id()
-	var wd := WeaponDB.get_data(id)
-	if id != "fists":
-		var swing := 0.0
-		if wd["melee"] and swing_t > 0.0:
-			swing = -1.2 + (0.15 - swing_t) / 0.15 * 2.4
-		draw_set_transform(Vector2.ZERO, aim + swing)
-		draw_rect(Rect2(6, 2, wd["length"], 4), WeaponDB.color_of(id))
-		draw_set_transform(Vector2.ZERO, aim)
-	elif swing_t > 0.0:
-		draw_circle(Vector2(16, 6), 4.0, Color(0.85, 0.7, 0.55))
-	draw_circle(Vector2.ZERO, 11.0, Color(0.25, 0.65, 0.75))
-	draw_circle(Vector2(2, 0), 6.0, Color(0.12, 0.12, 0.14))
-	draw_rect(Rect2(3, -3, 5, 6), Color(0.85, 0.7, 0.55))
+	var swing := 0.0
+	if WeaponDB.get_data(id)["melee"] and swing_t > 0.0:
+		swing = -1.2 + (0.15 - swing_t) / 0.15 * 2.4
+	rig.show_weapon(id)
+	rig.pose(aim, swing)

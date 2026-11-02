@@ -13,6 +13,12 @@ var game: Node
 func _ready() -> void:
 	add_to_group("pickups")
 	rotation = randf() * TAU
+	var spr := Sprite2D.new()
+	spr.texture = PixelArt.texture("weapon:" + weapon_id)
+	spr.scale = Vector2.ONE * CharacterRig.SCALE
+	# Empty guns lie dimmer so loaded ones stand out.
+	spr.modulate = Color(1.25, 1.2, 1.1) if not WeaponDB.is_gun(weapon_id) or ammo > 0 else Color(0.7, 0.6, 0.6)
+	add_child(spr)
 	if thrown:
 		spin = 22.0
 
@@ -46,11 +52,3 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 
 
-func _draw() -> void:
-	var wd := WeaponDB.get_data(weapon_id)
-	var length: float = maxf(wd["length"], 8.0)
-	var r := Rect2(-length * 0.5, -2.5, length, 5)
-	draw_rect(r.grow(2.0), Color(1, 1, 1, 0.25))
-	draw_rect(r, WeaponDB.color_of(weapon_id))
-	if WeaponDB.is_gun(weapon_id) and ammo <= 0:
-		draw_line(Vector2(-4, -4), Vector2(4, 4), Color(0.9, 0.3, 0.3), 1.5)

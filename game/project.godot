@@ -21,6 +21,8 @@ theme/custom_font="res://assets/fonts/Galmuri11-Bold.ttf"
 
 [rendering]
 
+2d/snap/snap_2d_transforms_to_pixel=true
+
 environment/defaults/default_clear_color=Color(0.05, 0.05, 0.06, 1)
 
 renderer/rendering_method="gl_compatibility"

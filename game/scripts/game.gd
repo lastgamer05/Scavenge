@@ -3,8 +3,8 @@ extends Node2D
 
 const MAP_PATH := "res://data/maps/ruins.txt"
 const EXTRACT_TIME := 3.0
-const ZOOM_OUTDOOR := 1.45
-const ZOOM_INDOOR := 1.85
+const ZOOM_OUTDOOR := 1.5  # x2 art scale = 3 screen pixels per art pixel
+const ZOOM_INDOOR := 2.0
 const RAID_TIME := 900.0
 const REINFORCE_AFTER := 600.0
 const REINFORCE_EVERY := 45.0
@@ -176,6 +176,7 @@ func _tick_raid_clock(delta: float) -> void:
 		e.weapon_id = ["pistol", "smg", "rifle"].pick_random()
 		e.position = level.random_floor_near(pos, 2)
 		e.alerted = true
+		e.centra = true
 		entities.add_child(e)
 		total_enemies += 1
 		e.hear(player.global_position)

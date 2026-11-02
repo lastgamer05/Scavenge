@@ -132,38 +132,106 @@ func _find_buildings() -> void:
 			buildings.append(cells)
 
 
-## Creates wall collision, light occluders and roofs. Call after adding to the tree.
-func build(roof_parent: Node) -> void:
-	var body := StaticBody2D.new()
-	body.collision_layer = 1
-	body.collision_mask = 0
-	add_child(body)
-	for y in height:
+## Wall cells merged into as few rectangles as possible (row runs stacked downward).
+func wall_rects() -> Array[Rect2i]:
+	var done: Array[Rect2i] = []
+	var open := {}  # Vector2i(x0, x1) -> Rect2i still growing
+	for y in height + 1:
+		var runs := {}
 		var x := 0
-		while x < width:
+		while y < height and x < width:
 			if rows[y][x] != "#":
 				x += 1
 				continue
 			var start := x
 			while x < width and rows[y][x] == "#":
 				x += 1
-			var r := Rect2(start * CELL, y * CELL, (x - start) * CELL, CELL)
-			var shape := RectangleShape2D.new()
-			shape.size = r.size
-			var cs := CollisionShape2D.new()
-			cs.shape = shape
-			cs.position = r.get_center()
-			body.add_child(cs)
-			var occ := LightOccluder2D.new()
-			occ.occluder = OccluderPolygon2D.new()
-			occ.occluder.polygon = PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
-			add_child(occ)
+			runs[Vector2i(start, x)] = true
+		var next := {}
+		for span in runs:
+			if open.has(span):
+				var r: Rect2i = open[span]
+				r.size.y += 1
+				next[span] = r
+			else:
+				next[span] = Rect2i(span.x, y, span.y - span.x, 1)
+		for span in open:
+			if not next.has(span):
+				done.append(open[span])
+		open = next
+	return done
+
+
+## Creates wall collision, light occluders, baked ground art and roofs. Call after adding to the tree.
+func build(roof_parent: Node) -> void:
+	_bake()
+	var body := StaticBody2D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	add_child(body)
+	for cells in wall_rects():
+		var r := Rect2(Vector2(cells.position) * CELL, Vector2(cells.size) * CELL)
+		var shape := RectangleShape2D.new()
+		shape.size = r.size
+		var cs := CollisionShape2D.new()
+		cs.shape = shape
+		cs.position = r.get_center()
+		body.add_child(cs)
+		var occ := LightOccluder2D.new()
+		occ.occluder = OccluderPolygon2D.new()
+		occ.occluder.polygon = PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+		add_child(occ)
 	for i in buildings.size():
 		var roof := Roof.new()
 		roof.setup(self, buildings[i], i)
 		roof_parent.add_child(roof)
 		roofs.append(roof)
-	queue_redraw()
+
+
+const CHUNK := 32  # cells per baked texture side
+
+
+## Draws every cell once into chunk textures; lights then only touch a few large quads.
+func _bake() -> void:
+	var art := PixelArt.T
+	for cy in ceili(height / float(CHUNK)):
+		for cx in ceili(width / float(CHUNK)):
+			var img := Image.create_empty(CHUNK * art, CHUNK * art, false, Image.FORMAT_RGBA8)
+			for y in range(cy * CHUNK, mini(height, (cy + 1) * CHUNK)):
+				for x in range(cx * CHUNK, mini(width, (cx + 1) * CHUNK)):
+					var dst := Vector2i(x - cx * CHUNK, y - cy * CHUNK) * art
+					img.blit_rect(_tile_for(x, y), Rect2i(0, 0, art, art), dst)
+					if rows[y][x] != "#":
+						if is_wall(Vector2i(x, y - 1)):
+							img.blend_rect(PixelArt.shadow("top"), Rect2i(0, 0, art, art), dst)
+						if is_wall(Vector2i(x - 1, y)):
+							img.blend_rect(PixelArt.shadow("left"), Rect2i(0, 0, art, art), dst)
+			var spr := Sprite2D.new()
+			spr.texture = ImageTexture.create_from_image(img)
+			spr.centered = false
+			spr.scale = Vector2.ONE * (CELL / float(art))
+			spr.position = Vector2(cx, cy) * CHUNK * CELL
+			add_child(spr)
+
+
+func _tile_for(x: int, y: int) -> Image:
+	var n := int(_noise(x, y) * 255.0)
+	match rows[y][x]:
+		"#":
+			if not is_wall(Vector2i(x, y + 1)):
+				return PixelArt.tile("wall_face", n % 2)
+			if not is_wall(Vector2i(x, y - 1)):
+				return PixelArt.tile("wall_top", 2)
+			return PixelArt.tile("wall_top", n % 2)
+		".":
+			return PixelArt.tile("wood", 2 if n % 11 == 0 else (3 if n % 7 == 0 else n % 2))
+		"=":
+			return PixelArt.tile("cobble", 1 if n % 5 == 0 else 0)
+		"%":
+			return PixelArt.tile("rubble", n % 2)
+		",":
+			return PixelArt.tile("dirt", n % 4)
+	return PixelArt.tile("plate", 0)
 
 
 func in_bounds(c: Vector2i) -> bool:
@@ -226,35 +294,3 @@ static func _noise(x: int, y: int) -> float:
 	return float(((x * 73856093) ^ (y * 19349663)) & 0xff) / 255.0
 
 
-func _draw() -> void:
-	for y in height:
-		for x in width:
-			var r := Rect2(x * CELL, y * CELL, CELL, CELL)
-			var n := _noise(x, y)
-			match rows[y][x]:
-				"#":
-					draw_rect(r, Color(0.2, 0.13, 0.11).lerp(Color(0.25, 0.16, 0.13), n))
-					if y + 1 < height and rows[y + 1][x] != "#":
-						draw_rect(Rect2(r.position + Vector2(0, CELL - 7), Vector2(CELL, 7)), Color(0.11, 0.07, 0.06))
-					if y > 0 and rows[y - 1][x] != "#":
-						draw_rect(Rect2(r.position, Vector2(CELL, 3)), Color(0.36, 0.25, 0.2))
-					draw_line(r.position + Vector2(0, 12), r.position + Vector2(CELL, 12), Color(0.14, 0.09, 0.08), 1.0)
-				".":
-					var plank := Color(0.34, 0.26, 0.18) if (y % 2 == 0) else Color(0.31, 0.23, 0.16)
-					draw_rect(r, plank.lerp(Color(0.26, 0.2, 0.15), n * 0.5))
-					draw_line(r.position + Vector2(0, CELL - 1), r.position + Vector2(CELL, CELL - 1), Color(0.2, 0.15, 0.11), 1.0)
-					draw_line(r.position + Vector2(int(n * 24) + 4, 0), r.position + Vector2(int(n * 24) + 4, CELL), Color(0.22, 0.16, 0.12), 1.0)
-				"=":
-					draw_rect(r, Color(0.27, 0.27, 0.29).lerp(Color(0.31, 0.31, 0.33), n))
-					for i in 4:
-						var off := Vector2((i % 2) * 16 + (8 if (i / 2 + y) % 2 else 0), (i / 2) * 16)
-						draw_rect(Rect2(r.position + off + Vector2(1, 1), Vector2(14, 14)), Color(0.22, 0.22, 0.24), false, 1.0)
-				"%":
-					draw_rect(r, Color(0.2, 0.19, 0.17))
-					for i in 3:
-						var p := r.position + Vector2(_noise(x + i, y) * 24, _noise(x, y + i) * 24)
-						draw_rect(Rect2(p, Vector2(6, 4)), Color(0.33, 0.24, 0.2) if i % 2 else Color(0.3, 0.3, 0.3))
-				"X", "M", "Z", "V":
-					draw_rect(r, Color(0.2, 0.22, 0.2))
-				_:
-					draw_rect(r, Color(0.17, 0.17, 0.15).lerp(Color(0.21, 0.2, 0.17), n))

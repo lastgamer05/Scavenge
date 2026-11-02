@@ -28,6 +28,10 @@ var idle_t := 0.0
 var swing_t := -1.0
 var home := Vector2.ZERO
 var death_dir := Vector2.RIGHT
+var centra := false  # Centra patrol (late-raid reinforcement) instead of a scavenger
+var rig: CharacterRig
+var mark_node: Node2D
+var mark := ""
 
 
 func _ready() -> void:
@@ -39,6 +43,11 @@ func _ready() -> void:
 	cs.shape = shape
 	add_child(cs)
 	add_to_group("enemies")
+	rig = CharacterRig.new("centra" if centra else "scav:%d" % (randi() % 3))
+	add_child(rig)
+	mark_node = Node2D.new()
+	mark_node.draw.connect(_draw_mark)
+	add_child(mark_node)
 	home = global_position
 	facing = randf() * TAU
 	idle_t = randf_range(1.0, 3.0)
@@ -55,6 +64,8 @@ func is_down() -> bool:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	if state == State.PATROL and global_position.distance_squared_to(game.player.global_position) > 1300.0 * 1300.0:
+		return
 	fire_t -= delta
 	if state == State.STUNNED:
 		stun_t -= delta
@@ -62,7 +73,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		if stun_t <= 0.0:
 			_recover()
-		queue_redraw()
+		_update_visuals()
 		return
 
 	var player: Player = game.player
@@ -85,7 +96,7 @@ func _physics_process(delta: float) -> void:
 			_chase(delta, sees, player)
 		State.SEARCH:
 			_search(delta)
-	queue_redraw()
+	_update_visuals()
 
 
 func _can_see(p: Player) -> bool:
@@ -199,7 +210,7 @@ func stun(dir: Vector2, t: float) -> void:
 	swing_t = -1.0
 	velocity = dir * 260.0
 	alerted = true
-	queue_redraw()
+	_update_visuals()
 
 
 func _recover() -> void:
@@ -224,7 +235,9 @@ func kill(dir: Vector2) -> void:
 	collision_mask = 0
 	velocity = Vector2.ZERO
 	game.on_enemy_killed(self, dir)
-	queue_redraw()
+	rig.lie_down(dir.angle(), Color(0.55, 0.42, 0.42))
+	rig.position = dir * 8.0
+	_set_mark("")
 
 
 func take_hit(dir: Vector2, _from_player: bool) -> void:
@@ -270,39 +283,36 @@ func _turn_to(angle: float, delta: float, rate: float) -> void:
 	facing = rotate_toward(facing, angle, rate * delta)
 
 
-func _draw() -> void:
-	var body := Color(0.75, 0.22, 0.2)
-	if state == State.DEAD:
-		draw_set_transform(death_dir * 8.0, death_dir.angle())
-		draw_rect(Rect2(-12, -8, 24, 16), body.darkened(0.45))
-		draw_circle(Vector2(14, 0), 6.0, Color(0.6, 0.45, 0.35))
-		return
+func _update_visuals() -> void:
 	if state == State.STUNNED:
-		draw_set_transform(Vector2.ZERO, facing + PI * 0.5)
-		draw_rect(Rect2(-12, -8, 24, 16), body.darkened(0.2))
-		draw_circle(Vector2(14, 0), 6.0, Color(0.75, 0.6, 0.45))
-		draw_set_transform(Vector2.ZERO, 0.0)
-		draw_string(ThemeDB.fallback_font, Vector2(-6, -16), "zz", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.8, 0.8, 1.0))
+		rig.show_weapon("")
+		rig.rotation = facing + PI * 0.5
+		rig.modulate = Color(0.75, 0.75, 0.9)
+		_set_mark("zz")
 		return
-	draw_set_transform(Vector2.ZERO, facing)
-	if weapon_id != "" and weapon_id != "fists":
-		var wd := WeaponDB.get_data(weapon_id)
-		var swing := 0.0
-		if swing_t >= 0.0:
-			swing = -1.0 + (0.22 - swing_t) / 0.22 * 2.0
-		draw_set_transform(Vector2.ZERO, facing + swing)
-		draw_rect(Rect2(6, 2, wd["length"], 4), WeaponDB.color_of(weapon_id))
-		draw_set_transform(Vector2.ZERO, facing)
-	draw_circle(Vector2.ZERO, 11.0, body)
-	draw_circle(Vector2(2, 0), 6.0, Color(0.2, 0.1, 0.1))
-	draw_set_transform(Vector2.ZERO, 0.0)
-	var mark := ""
-	var mark_col := Color.WHITE
-	if state == State.CHASE:
-		mark = "!"
-		mark_col = Color(1.0, 0.35, 0.3)
-	elif state == State.INVESTIGATE or state == State.SEARCH:
-		mark = "?"
-		mark_col = Color(1.0, 0.85, 0.3)
-	if mark != "":
-		draw_string(ThemeDB.fallback_font, Vector2(-4, -16), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, mark_col)
+	rig.modulate = Color.WHITE
+	rig.show_weapon(weapon_id)
+	var swing := 0.0
+	if swing_t >= 0.0:
+		swing = -1.0 + (0.22 - swing_t) / 0.22 * 2.0
+	rig.pose(facing, swing)
+	match state:
+		State.CHASE:
+			_set_mark("!")
+		State.INVESTIGATE, State.SEARCH:
+			_set_mark("?")
+		_:
+			_set_mark("")
+
+
+func _set_mark(m: String) -> void:
+	if m != mark:
+		mark = m
+		mark_node.queue_redraw()
+
+
+func _draw_mark() -> void:
+	if mark == "":
+		return
+	var col := Color(1.0, 0.35, 0.3) if mark == "!" else (Color(1.0, 0.85, 0.3) if mark == "?" else Color(0.8, 0.8, 1.0))
+	mark_node.draw_string(ThemeDB.fallback_font, Vector2(-5, -18), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, col)
