@@ -1,3 +1,4 @@
 .godot/
 build/
 *.tmp
+docs/art/**/*.png
