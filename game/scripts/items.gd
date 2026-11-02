@@ -40,6 +40,12 @@ const LOOT := {
 	"corpse": {"title": "시체", "size": Vector2i(4, 3), "rolls": Vector2i(0, 2),
 		"pool": ["cash", "cans", "meds", "watch", "ammo_box"]},
 	"pile": {"title": "버린 물건", "size": Vector2i(6, 4), "rolls": Vector2i(0, 0), "pool": []},
+	# Hideout: never filled with random loot.
+	"stash": {"title": "창고", "size": Vector2i(8, 6), "rolls": Vector2i(0, 0), "pool": []},
+	"weapon_shop": {"title": "무기상 진열대", "size": Vector2i(7, 5), "rolls": Vector2i(0, 0), "pool": []},
+	"doctor": {"title": "의사 (의약품 매입)", "size": Vector2i(4, 4), "rolls": Vector2i(0, 0), "pool": []},
+	"junk": {"title": "고물상 (매입)", "size": Vector2i(6, 5), "rolls": Vector2i(0, 0), "pool": []},
+	"donate": {"title": "바파스 기부함", "size": Vector2i(5, 4), "rolls": Vector2i(0, 0), "pool": []},
 }
 
 

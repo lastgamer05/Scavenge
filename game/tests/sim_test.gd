@@ -11,6 +11,7 @@ var shooter: Enemy
 
 
 func _initialize() -> void:
+	SaveData.enabled = false
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 

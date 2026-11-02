@@ -10,6 +10,7 @@ var game: Node
 var alive := true
 var slots: Array = [null, null]  # each null or an ItemDB item
 var bag := InvGrid.new(6, 4)
+var pouch := InvGrid.new(1, 2)  # safe pouch: survives death
 var current := 0
 var fire_t := 0.0
 var swing_t := 0.0
@@ -38,10 +39,12 @@ func _physics_process(delta: float) -> void:
 	fire_t -= delta
 	swing_t = maxf(0.0, swing_t - delta)
 	_update_rig()
-	# With the bag open the mouse belongs to the UI; Toa can only walk.
+	# With the bag open the mouse belongs to the UI; Toa can only walk. No fighting in the hideout.
 	if game.inventory.visible:
 		return
 	aim = (get_global_mouse_position() - global_position).angle()
+	if not game.combat:
+		return
 
 	var w = slots[current]
 	var wd := WeaponDB.get_data(current_id())
@@ -128,6 +131,8 @@ func interact() -> void:
 			game.inventory.open(target["node"])
 		"flare":
 			target["node"].fire_flare(game)
+		"npc", "exit":
+			target["node"].interact()
 
 
 func _pick_up(p: WeaponPickup) -> void:

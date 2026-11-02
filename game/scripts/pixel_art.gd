@@ -253,6 +253,16 @@ static func _build_sprite(key: String) -> Image:
 			return _character(p[0], p[1], Color8(150, 40, 40), false)
 		"centra":
 			return _character(Color8(70, 82, 104), Color8(52, 60, 76), Color8(170, 40, 36), false)
+		"npc":
+			var looks := {
+				"leader": [Color8(120, 46, 40), Color8(60, 50, 46), Color8(200, 170, 90)],
+				"weapons": [Color8(110, 80, 52), Color8(70, 56, 44), Color8(60, 60, 66)],
+				"doctor": [Color8(196, 196, 186), Color8(90, 80, 72), Color8(180, 50, 50)],
+				"junk": [Color8(96, 110, 70), Color8(110, 90, 60), Color8(150, 120, 60)],
+				"informant": [Color8(52, 52, 64), Color8(40, 40, 48), Color8(120, 160, 190)],
+			}
+			var l: Array = looks.get(parts[1], looks["junk"])
+			return _character(l[0], l[1], l[2], false)
 		"weapon":
 			return _weapon(parts[1])
 		"prop":

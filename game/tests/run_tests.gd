@@ -25,10 +25,13 @@ func _test_scripts_compile() -> void:
 			"res://scripts/weapons.gd", "res://scripts/controls.gd", "res://scripts/roof.gd",
 			"res://scripts/items.gd", "res://scripts/inv_grid.gd", "res://scripts/loot_container.gd",
 			"res://scripts/inventory_ui.gd", "res://scripts/lights.gd", "res://scripts/light_source.gd",
-			"res://scripts/extract_zone.gd"]:
+			"res://scripts/extract_zone.gd", "res://scripts/save_data.gd", "res://scripts/hideout.gd",
+			"res://scripts/hideout_hud.gd", "res://scripts/npc.gd", "res://scripts/pixel_art.gd",
+			"res://scripts/character_rig.gd"]:
 		var s := load(path) as Script
 		_check(s != null and s.can_instantiate(), "script does not compile: " + path)
 	_check(load("res://scenes/main.tscn") is PackedScene, "main scene does not load")
+	_check(load("res://scenes/hideout.tscn") is PackedScene, "hideout scene does not load")
 
 
 func _test_map() -> void:

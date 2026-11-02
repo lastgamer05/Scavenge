@@ -23,6 +23,7 @@ var active_zone: ExtractZone = null
 var time_left := RAID_TIME
 var reinforce_t := REINFORCE_EVERY
 var death_reason := ""
+var combat := true
 var state := "play"  # play, dead, extracted
 var extract_t := 0.0
 var run_time := 0.0
@@ -86,6 +87,7 @@ func _ready() -> void:
 	player.game = self
 	player.position = level.cell_to_world(level.player_cell)
 	entities.add_child(player)
+	_load_loadout()
 	player_light = Lights.make(Color(0.75, 0.85, 1.0), 280.0, 0.75, true)
 	player.add_child(player_light)
 
@@ -107,8 +109,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if state != "play" and Input.is_action_just_pressed("restart"):
-		get_tree().reload_current_scene()
+	if state != "play" and (Input.is_action_just_pressed("restart") or Input.is_action_just_pressed("interact")):
+		_return_to_hideout()
 		return
 	var cell := level.world_to_cell(player.global_position)
 	if state == "play":
@@ -129,6 +131,33 @@ func _process(delta: float) -> void:
 	camera.position = player.global_position + screen_off / zoom * look
 	shake = maxf(0.0, shake - delta * 30.0)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
+
+
+## Toa enters the raid with whatever the hideout packed.
+func _load_loadout() -> void:
+	SaveData.ensure_loaded()
+	var overflow := []
+	player.bag = SaveData.make_grid("bag", SaveData.bag, overflow)
+	player.pouch = SaveData.make_grid("pouch", SaveData.pouch, overflow)
+	player.slots = [null, null]
+	for i in 2:
+		if SaveData.slots[i] != null:
+			player.slots[i] = SaveData.slots[i].duplicate()
+	SaveData.stash.append_array(overflow)
+
+
+## Inventory moves are free in a raid; the hideout overrides this to buy, sell and donate.
+func transfer(_item: Dictionary, _from, _to) -> String:
+	return "ok"
+
+
+func price_hint(_item: Dictionary, _grid) -> String:
+	return ""
+
+
+func _return_to_hideout() -> void:
+	Engine.time_scale = 1.0
+	get_tree().change_scene_to_file("res://scenes/hideout.tscn")
 
 
 func _spawn_light(kind: String, c: Vector2i) -> void:
@@ -376,6 +405,7 @@ func on_player_died(dir: Vector2) -> void:
 	state = "dead"
 	extract_t = 0.0
 	inventory.close()
+	SaveData.record_raid(false, player.bag, player.pouch, player.slots, carried_value())
 	decals.add_blood(player.global_position, dir)
 	add_shake(12.0)
 
@@ -386,4 +416,5 @@ func _on_extracted() -> void:
 	inventory.close()
 	extracted_value = carried_value()
 	extracted_count = player.bag.items.size() + player.slots.size() - player.slots.count(null)
+	SaveData.record_raid(true, player.bag, player.pouch, player.slots, extracted_value)
 	player.set_physics_process(false)

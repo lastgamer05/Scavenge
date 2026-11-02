@@ -21,9 +21,11 @@ func setup(container_kind: String, fill_loot: bool = true) -> void:
 
 func _ready() -> void:
 	add_to_group("containers")
-	if kind != "corpse":
+	var prop: String = {"crate": "crate", "locker": "locker", "safe": "safe", "pile": "pile",
+		"stash": "locker", "donate": "crate"}.get(kind, "")
+	if prop != "":
 		sprite = Sprite2D.new()
-		sprite.texture = PixelArt.texture("prop:" + kind)
+		sprite.texture = PixelArt.texture("prop:" + prop)
 		sprite.scale = Vector2.ONE * CharacterRig.SCALE
 		add_child(sprite)
 
@@ -38,7 +40,7 @@ func on_closed() -> void:
 
 
 func _draw() -> void:
-	if not searched and kind != "corpse" and kind != "pile":
+	if not searched and kind in ["crate", "locker", "safe"]:
 		draw_arc(Vector2.ZERO, 20.0, 0.0, TAU, 24, Color(1, 0.9, 0.6, 0.35), 2.0)
 	if sprite != null and searched and grid.items.is_empty():
 		sprite.modulate = Color(0.55, 0.55, 0.55)

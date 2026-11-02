@@ -171,9 +171,9 @@ func _process(delta: float) -> void:
 	match game.state:
 		"dead":
 			var why: String = game.death_reason if game.death_reason != "" else "사망"
-			center_label.text = "%s\n\n들고 있던 $%d 어치를 잃었습니다\n\n[R] 다시 시작" % [why, game.carried_value()]
+			center_label.text = "%s\n\n들고 있던 $%d 어치를 잃었습니다 (안전 파우치는 남았다)\n\n[E] 은신처로 귀환" % [why, game.carried_value()]
 		"extracted":
-			center_label.text = "탈출 성공 — %s\n\n회수 가치 $%d  (%d개)\n처치 %d/%d    시간 %02d:%02d\n\n[R] 다시 하기" % [
+			center_label.text = "탈출 성공 — %s\n\n회수 가치 $%d  (%d개)\n처치 %d/%d    시간 %02d:%02d\n\n[E] 은신처로 귀환" % [
 				game.active_zone.title, game.extracted_value, game.extracted_count, game.kills, game.total_enemies, secs / 60, secs % 60]
 		_:
 			center_label.text = ""

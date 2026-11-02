@@ -1,12 +1,15 @@
 class_name InventoryUI
 extends Control
-## Bag screen. Time slows to 30% while open; the world keeps moving and Toa can still walk.
+## Bag screen: quick slots, bag, safe pouch and whatever Toa is looking into (crate, stash, trader).
+## In a raid time slows to 30% while open; the world keeps moving and Toa can still walk.
 ## Drag to move, R or right-click to rotate, Shift+click to quick-move, drag outside to drop.
+## Every move between places asks game.transfer(), which lets the hideout charge, pay or refuse.
 
 const CELL := 44
 const SLOW := 0.3
 const SLOT_SIZE := Vector2(CELL * 3, CELL * 2)
 const PANEL_GAP := 60.0
+const POUCH_GAP := 44.0
 const LEAVE_RANGE := 72.0
 
 var game: Node
@@ -17,6 +20,7 @@ var drag_origin := Vector2i.ZERO
 var drag_origin_rot := false
 var drag_grab := Vector2.ZERO
 var bag_origin := Vector2.ZERO
+var pouch_origin := Vector2.ZERO
 var other_origin := Vector2.ZERO
 
 
@@ -29,7 +33,7 @@ func _ready() -> void:
 func open(container: LootContainer) -> void:
 	other = container
 	visible = true
-	Engine.time_scale = SLOW
+	Engine.time_scale = SLOW if game.combat else 1.0
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_layout()
 	queue_redraw()
@@ -56,6 +60,10 @@ func _bag() -> InvGrid:
 	return game.player.bag
 
 
+func _pouch() -> InvGrid:
+	return game.player.pouch
+
+
 func _slots() -> Array:
 	return game.player.slots
 
@@ -76,7 +84,9 @@ func _layout() -> void:
 	var total_w := bag_px.x
 	if other != null:
 		total_w += PANEL_GAP + other.grid.w * CELL
-	bag_origin = Vector2(floorf((size.x - total_w) * 0.5), floorf(size.y * 0.5 - bag_px.y * 0.5 + 50.0))
+	var total_h := bag_px.y + POUCH_GAP + _pouch().h * CELL
+	bag_origin = Vector2(floorf((size.x - total_w) * 0.5), floorf(size.y * 0.5 - total_h * 0.5 + 40.0))
+	pouch_origin = bag_origin + Vector2(0, bag_px.y + POUCH_GAP)
 	other_origin = bag_origin + Vector2(bag_px.x + PANEL_GAP, 0)
 
 
@@ -88,23 +98,29 @@ func _grid_rect(origin: Vector2, grid: InvGrid) -> Rect2:
 	return Rect2(origin, Vector2(grid.w, grid.h) * CELL)
 
 
+func _grids() -> Array:
+	var list := [{"grid": _bag(), "origin": bag_origin}, {"grid": _pouch(), "origin": pouch_origin}]
+	if other != null:
+		list.append({"grid": other.grid, "origin": other_origin})
+	return list
+
+
 ## What is under a screen position: {"slot": i}, {"grid": InvGrid, "origin": Vector2} or {}.
 func _target_at(pos: Vector2) -> Dictionary:
 	for i in 2:
 		if _slot_rect(i).has_point(pos):
 			return {"slot": i}
-	if _grid_rect(bag_origin, _bag()).has_point(pos):
-		return {"grid": _bag(), "origin": bag_origin}
-	if other != null and _grid_rect(other_origin, other.grid).has_point(pos):
-		return {"grid": other.grid, "origin": other_origin}
+	for g in _grids():
+		if _grid_rect(g["origin"], g["grid"]).has_point(pos):
+			return g
 	return {}
 
 
 func _over_panel(pos: Vector2) -> bool:
-	var area := _grid_rect(bag_origin, _bag()).merge(_slot_rect(0)).merge(_slot_rect(1)).grow(30.0)
-	if other != null:
-		area = area.merge(_grid_rect(other_origin, other.grid).grow(30.0))
-	return area.has_point(pos)
+	var area := _slot_rect(0).merge(_slot_rect(1))
+	for g in _grids():
+		area = area.merge(_grid_rect(g["origin"], g["grid"]))
+	return area.grow(30.0).has_point(pos)
 
 
 func _cell_at(origin: Vector2, pos: Vector2) -> Vector2i:
@@ -164,13 +180,21 @@ func _quick_move(item: Dictionary, grid: InvGrid) -> void:
 	if dest == null:
 		# Bag only: Shift+click a weapon to equip it into an empty quick slot.
 		var free := _slots().find(null)
-		if ItemDB.is_weapon(item["id"]) and free >= 0:
+		if ItemDB.is_weapon(item["id"]) and free >= 0 and game.transfer(item, grid, free) == "ok":
 			grid.remove(item)
 			_slots()[free] = item
 		return
+	var from := Vector3i(item["x"], item["y"], int(item["rot"]))
 	grid.remove(item)
 	if not dest.auto_add(item):
-		grid.add_at(item, item["x"], item["y"], item["rot"])
+		grid.add_at(item, from.x, from.y, from.z == 1)
+		return
+	match game.transfer(item, grid, dest):
+		"deny":
+			dest.remove(item)
+			grid.add_at(item, from.x, from.y, from.z == 1)
+		"consumed":
+			dest.remove(item)
 
 
 func _begin_drag(item: Dictionary, src, pos: Vector2, grab: Vector2) -> void:
@@ -189,19 +213,26 @@ func _release(pos: Vector2) -> void:
 	var item: Dictionary = drag
 	var t := _target_at(pos)
 	if t.has("slot"):
-		if ItemDB.is_weapon(item["id"]):
+		if ItemDB.is_weapon(item["id"]) and game.transfer(item, drag_src, t["slot"]) == "ok":
 			var prev = _slots()[t["slot"]]
 			_slots()[t["slot"]] = item
+			drag = null
 			if prev != null:
 				_stash(prev)
-			drag = null
 			return
 	elif t.has("grid"):
 		var c := _drop_cell(t, pos)
-		if t["grid"].add_at(item, c.x, c.y, item["rot"]):
-			drag = null
-			return
-	elif not _over_panel(pos):
+		var g: InvGrid = t["grid"]
+		if g.fits(item, c.x, c.y, item["rot"]):
+			match game.transfer(item, drag_src, g):
+				"ok":
+					g.add_at(item, c.x, c.y, item["rot"])
+					drag = null
+					return
+				"consumed":
+					drag = null
+					return
+	elif not _over_panel(pos) and game.transfer(item, drag_src, "drop") == "ok":
 		game.drop_item(item)
 		drag = null
 		return
@@ -241,6 +272,8 @@ func _draw() -> void:
 	var bag := _bag()
 	_draw_title(font, bag_origin, bag.w * CELL, "가방", "%.1fkg   $%d" % [game.carried_weight(), bag.total_value()])
 	_draw_grid(font, bag_origin, bag)
+	_draw_title(font, pouch_origin, maxf(_pouch().w * CELL, 280.0), "안전 파우치", "죽어도 남는다")
+	_draw_grid(font, pouch_origin, _pouch())
 	for i in 2:
 		var r := _slot_rect(i)
 		draw_rect(r, Color(0.1, 0.1, 0.12, 0.95))
@@ -268,17 +301,22 @@ func _draw() -> void:
 		_draw_item(font, Rect2(m - drag_grab, Vector2(s) * CELL).grow(-2.0), drag, 0.85)
 
 	var hovered = drag
+	var hovered_grid = drag_src if drag != null else null
 	if hovered == null:
 		if t.has("slot"):
 			hovered = _slots()[t["slot"]]
 		elif t.has("grid"):
 			hovered = t["grid"].item_at(_cell_at(t["origin"], m))
-	var bottom := maxf(bag_origin.y + bag.h * CELL, other_origin.y + (other.grid.h * CELL if other != null else 0.0))
+			hovered_grid = t["grid"]
+	var bottom := maxf(pouch_origin.y + _pouch().h * CELL, other_origin.y + (other.grid.h * CELL if other != null else 0.0))
 	if hovered != null:
 		var d := ItemDB.get_data(hovered["id"])
 		var info := "%s    $%d    %.1fkg" % [d["name"], d["value"], d["weight"]]
 		if WeaponDB.is_gun(hovered["id"]):
 			info += "    탄 %d/%d" % [hovered["ammo"], WeaponDB.get_data(hovered["id"])["ammo"]]
+		var hint: String = game.price_hint(hovered, hovered_grid)
+		if hint != "":
+			info += "    " + hint
 		draw_string(font, Vector2(0, bottom + 40), info, HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, Color(1, 0.95, 0.8))
 	draw_string(font, Vector2(0, bottom + 76),
 		"드래그 이동   R/우클릭 회전   Shift+클릭 빠른 이동   밖으로 끌어 버리기   Tab/E 닫기",
