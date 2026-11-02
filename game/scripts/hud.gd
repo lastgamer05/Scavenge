@@ -25,6 +25,39 @@ class Crosshair extends Control:
 			draw_arc(m, 16.0, -PI * 0.5, -PI * 0.5 + TAU * k, 32, Color(0.3, 1.0, 0.5), 3.0)
 
 
+class ZoneMarkers extends Control:
+	var hud: Hud
+
+	func _process(_delta: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		var game = hud.game
+		if game.state != "play" or game.inventory.visible:
+			return
+		var font := get_theme_default_font()
+		var xf := get_viewport().get_canvas_transform()
+		var view := Rect2(Vector2(40, 90), size - Vector2(80, 180))
+		var me: Vector2 = game.player.global_position
+		for z in get_tree().get_nodes_in_group("extracts"):
+			var col := Color(0.4, 1.0, 0.55) if z.is_open(game) or z.kind == "flare" and z.flare_state == "idle" else Color(1.0, 0.55, 0.45)
+			if z.kind == "flare" and z.flare_state == "gone":
+				col = Color(0.6, 0.6, 0.6)
+			var p: Vector2 = xf * z.global_position
+			var dist := int(me.distance_to(z.global_position) / Level.CELL)
+			var label := "%s  %dm" % [z.title, dist]
+			if view.has_point(p):
+				draw_string(font, p + Vector2(-60, -36), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
+				continue
+			var center := size * 0.5
+			var dir := (p - center).normalized()
+			var edge := center + dir * minf(absf(view.size.x * 0.5 / dir.x) if dir.x != 0.0 else 1e9,
+				absf(view.size.y * 0.5 / dir.y) if dir.y != 0.0 else 1e9)
+			var tip := edge + dir * 12.0
+			draw_colored_polygon(PackedVector2Array([tip, edge + dir.rotated(2.5) * 10.0, edge + dir.rotated(-2.5) * 10.0]), col)
+			draw_string(font, edge - dir * 22.0 + Vector2(-60, 4), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
+
+
 var game: Node
 var slots_label: Label
 var info_label: Label
@@ -53,6 +86,11 @@ func _ready() -> void:
 	hint.offset_bottom = -12
 	hint.text = "WASD 이동   좌클릭 공격   우클릭 던지기   E 줍기/뒤지기/처형   Tab 가방   Q 무기 교체   Shift 멀리 보기"
 	hint.modulate = Color(1, 1, 1, 0.7)
+	var markers := ZoneMarkers.new()
+	markers.hud = self
+	markers.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	markers.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(markers)
 	var cross := Crosshair.new()
 	cross.hud = self
 	cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -105,7 +143,9 @@ func _process(delta: float) -> void:
 	slots_label.text = "\n".join(lines)
 
 	var secs := int(game.run_time)
-	info_label.text = "처치 %d/%d    %02d:%02d" % [game.kills, game.total_enemies, secs / 60, secs % 60]
+	var left := maxi(0, ceili(game.time_left))
+	info_label.text = "처치 %d/%d    남은 시간 %02d:%02d" % [game.kills, game.total_enemies, left / 60, left % 60]
+	info_label.modulate = Color(1, 0.45, 0.4) if game.time_left < game.RAID_TIME - game.REINFORCE_AFTER else Color.WHITE
 
 	prompt_label.text = ""
 	if game.state == "play":
@@ -120,6 +160,9 @@ func _process(delta: float) -> void:
 				prompt_label.text = "E  줍기: %s%s" % [wd["name"], extra]
 			"search":
 				prompt_label.text = "E  뒤지기: %s" % target["node"].title
+		if game.active_zone != null:
+			var reason: String = game.active_zone.block_reason(game)
+			prompt_label.text = "[%s]  %s" % [game.active_zone.title, reason if reason != "" else "탈출 가능"]
 		if game.inventory.visible:
 			prompt_label.text = ""
 		if game.extract_t > 0.0:
@@ -127,10 +170,11 @@ func _process(delta: float) -> void:
 
 	match game.state:
 		"dead":
-			center_label.text = "사망\n\n들고 있던 $%d 어치를 잃었습니다\n\n[R] 다시 시작" % game.carried_value()
+			var why: String = game.death_reason if game.death_reason != "" else "사망"
+			center_label.text = "%s\n\n들고 있던 $%d 어치를 잃었습니다\n\n[R] 다시 시작" % [why, game.carried_value()]
 		"extracted":
-			center_label.text = "탈출 성공\n\n회수 가치 $%d  (%d개)\n처치 %d/%d    시간 %02d:%02d\n\n[R] 다시 하기" % [
-				game.extracted_value, game.extracted_count, game.kills, game.total_enemies, secs / 60, secs % 60]
+			center_label.text = "탈출 성공 — %s\n\n회수 가치 $%d  (%d개)\n처치 %d/%d    시간 %02d:%02d\n\n[R] 다시 하기" % [
+				game.active_zone.title, game.extracted_value, game.extracted_count, game.kills, game.total_enemies, secs / 60, secs % 60]
 		_:
 			center_label.text = ""
 

@@ -22,17 +22,35 @@ func _test_scripts_compile() -> void:
 	for path in ["res://scripts/game.gd", "res://scripts/level.gd", "res://scripts/player.gd",
 			"res://scripts/enemy.gd", "res://scripts/bullet.gd", "res://scripts/pickup.gd",
 			"res://scripts/fx.gd", "res://scripts/decals.gd", "res://scripts/hud.gd",
-			"res://scripts/weapons.gd", "res://scripts/controls.gd", "res://scripts/extract_glow.gd",
+			"res://scripts/weapons.gd", "res://scripts/controls.gd", "res://scripts/roof.gd",
 			"res://scripts/items.gd", "res://scripts/inv_grid.gd", "res://scripts/loot_container.gd",
-			"res://scripts/inventory_ui.gd"]:
+			"res://scripts/inventory_ui.gd", "res://scripts/lights.gd", "res://scripts/light_source.gd",
+			"res://scripts/extract_zone.gd"]:
 		var s := load(path) as Script
 		_check(s != null and s.can_instantiate(), "script does not compile: " + path)
 	_check(load("res://scenes/main.tscn") is PackedScene, "main scene does not load")
 
 
 func _test_map() -> void:
+	for path in ["res://data/maps/test_yard.txt", "res://data/maps/ruins.txt"]:
+		_test_map_file(path)
+	var ruins := Level.new()
+	ruins.load_from_file("res://data/maps/ruins.txt")
+	_check(ruins.extract_groups.size() == 4, "ruins has all four extraction kinds")
+	_check(ruins.player_cells.size() > 1, "ruins has several spawns")
+	_check(ruins.buildings.size() >= 10, "ruins buildings detected: %d" % ruins.buildings.size())
+	_check(not ruins.lamp_cells.is_empty() and not ruins.fire_cells.is_empty(), "ruins has lamps and fires")
+	for c in ruins.player_cells:
+		for kind in ruins.extract_groups:
+			var target: Vector2i = ruins.extract_groups[kind][0]
+			_check(not ruins.find_path(ruins.cell_to_world(c), ruins.cell_to_world(target)).is_empty(),
+				"spawn %s cannot reach %s" % [c, kind])
+	ruins.free()
+
+
+func _test_map_file(path: String) -> void:
 	var level := Level.new()
-	level.load_from_file("res://data/maps/test_yard.txt")
+	level.load_from_file(path)
 	_check(level.width > 0 and level.height > 0, "map is empty")
 	_check(not level.enemy_spawns.is_empty(), "map has no enemies")
 	_check(not level.extract_cells.is_empty(), "map has no extraction")

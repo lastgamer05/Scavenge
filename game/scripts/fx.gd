@@ -8,6 +8,11 @@ var life := 0.25
 var t := 0.0
 
 
+func _ready() -> void:
+	if kind == "flash":
+		add_child(Lights.make(Color(1.0, 0.8, 0.45), 150.0, 1.4, false))
+
+
 func _process(delta: float) -> void:
 	t += delta
 	if t >= life:

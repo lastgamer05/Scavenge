@@ -1,11 +1,13 @@
 extends SceneTree
-## Headless gameplay simulation: shoots, throws, executes and gets shot, checking state changes.
+## Headless gameplay simulation on the real raid map: combat, looting, roofs, extraction rules.
+## Enemies are frozen except the one under test, so the big map does not make results random.
 
 var frame := 0
 var game: Node
 var failures := 0
 var target: Enemy
 var target2: Enemy
+var shooter: Enemy
 
 
 func _initialize() -> void:
@@ -23,14 +25,25 @@ func _enemies() -> Array:
 	return get_nodes_in_group("enemies")
 
 
+## A floor spot at `dist` from the node with clear line of sight to it.
+func _spot_near(node: Node2D, dist: float) -> Vector2:
+	for i in 32:
+		var spot: Vector2 = node.global_position + Vector2.from_angle(i * TAU / 32.0) * dist
+		if not game.level.is_wall(game.level.world_to_cell(spot)) and game.has_los(node.global_position, spot):
+			return spot
+	return node.global_position + Vector2(dist, 0)
+
+
 func _process(_delta: float) -> bool:
 	frame += 1
 	var p: Player = game.player
 	match frame:
 		5:
+			for e in _enemies():
+				e.set_physics_process(false)
 			target = _enemies()[0]
-			p.global_position = target.global_position + Vector2(120, 0)
-			p.slots[0] = {"id": "pistol", "ammo": 12}
+			p.global_position = _spot_near(target, 120.0)
+			p.slots[0] = ItemDB.make("pistol")
 			p.current = 0
 			p.aim = (target.global_position - p.global_position).angle()
 			p._attack(p.slots[0], WeaponDB.get_data("pistol"))
@@ -40,31 +53,33 @@ func _process(_delta: float) -> bool:
 			_check(game.kills == 1, "kill counted")
 			_check(game.nearest_pickup(target.global_position, 200.0) != null, "dead enemy dropped weapon")
 			target2 = _enemies()[1]
-			p.global_position = target2.global_position + Vector2(-90, 0)
-			p.slots[0] = {"id": "smg", "ammo": 0}
+			p.global_position = _spot_near(target2, 90.0)
+			p.slots[0] = ItemDB.make("smg", 0)
 			p.aim = (target2.global_position - p.global_position).angle()
 			p._throw()
 		50:
 			_check(target2.is_down(), "thrown weapon stuns enemy")
 			_check(p.slots[0] == null, "thrown weapon leaves slot")
-			p.global_position = target2.global_position + Vector2(-20, 0)
+			p.global_position = target2.global_position + (p.global_position - target2.global_position).normalized() * 20.0
 			p.interact()
 		55:
 			_check(target2.is_dead(), "execute kills downed enemy")
 			_test_loot(p)
-			var shooter: Enemy = null
+			_test_extraction(p)
+			p.global_position = game.level.cell_to_world(game.level.buildings[0][0])
+		58:
+			_check(game.level.roofs[0].target_alpha == 0.0, "roof over Toa's building fades")
+			_check(game.level.roofs[1].target_alpha == 1.0, "other roofs stay")
 			for e in _enemies():
 				if not e.is_dead() and WeaponDB.is_gun(e.weapon_id):
 					shooter = e
 					break
-			# Stand in clear line of sight; an alerted enemy sees all around.
 			shooter.alerted = true
-			for i in 16:
-				var spot: Vector2 = shooter.global_position + Vector2.from_angle(i * TAU / 16.0) * 100.0
-				if not game.level.is_wall(game.level.world_to_cell(spot)) and game.has_los(shooter.global_position, spot):
-					p.global_position = spot
-					break
-		200:
+			shooter.set_physics_process(true)
+			p.global_position = _spot_near(shooter, 60.0)
+		320:
+			if p.alive:
+				print("debug shooter ", shooter.weapon_id, " state ", shooter.state, " dist ", shooter.global_position.distance_to(p.global_position), " los ", game.has_los(shooter.global_position, p.global_position), " cell ", game.level.world_to_cell(shooter.global_position))
 			_check(not p.alive and game.state == "dead", "enemy shoots player dead")
 			print("sim finished: %d failure(s)" % failures)
 			quit(1 if failures > 0 else 0)
@@ -97,3 +112,36 @@ func _test_loot(p: Player) -> void:
 		p.bag.auto_add(ItemDB.make("fuel"))
 	_check(game.speed_mult() < 1.0, "heavy bag slows movement")
 	p.bag.items.clear()
+
+
+func _zone(kind: String) -> ExtractZone:
+	for z in get_nodes_in_group("extracts"):
+		if z.kind == kind:
+			return z
+	return null
+
+
+func _test_extraction(p: Player) -> void:
+	_check(_zone("gate").is_open(game), "gate is always open")
+	var sewer := _zone("sewer")
+	for i in 4:
+		p.bag.auto_add(ItemDB.make("fuel"))
+	_check(not sewer.is_open(game), "sewer blocks a heavy bag")
+	p.bag.items.clear()
+	p.slots = [null, null]
+	_check(sewer.is_open(game), "sewer lets a light bag through")
+	var car := _zone("car")
+	_check(not car.is_open(game), "car needs fuel")
+	p.bag.auto_add(ItemDB.make("fuel"))
+	_check(car.is_open(game), "car opens with fuel")
+	car.consume(game)
+	_check(p.bag.items.is_empty(), "car burns the fuel can")
+	var flare := _zone("flare")
+	_check(not flare.is_open(game), "flare starts closed")
+	p.global_position = game.level.cell_to_world(flare.cells[0])
+	_check(game.interact_target(p.global_position).get("type", "") == "flare", "E at flare zone fires flare")
+	p.interact()
+	_check(flare.flare_state == "waiting", "flare fired")
+	flare.flare_t = 0.01
+	flare._process(0.02)
+	_check(flare.flare_state == "ready" and flare.is_open(game), "helicopter arrives and opens")

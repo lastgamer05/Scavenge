@@ -1,9 +1,13 @@
 extends Node2D
 ## One raid: load the map, spawn everything, track kills, loot, death and extraction.
 
-const MAP_PATH := "res://data/maps/test_yard.txt"
+const MAP_PATH := "res://data/maps/ruins.txt"
 const EXTRACT_TIME := 3.0
-const CAMERA_ZOOM := 1.6
+const ZOOM_OUTDOOR := 1.45
+const ZOOM_INDOOR := 1.85
+const RAID_TIME := 900.0
+const REINFORCE_AFTER := 600.0
+const REINFORCE_EVERY := 45.0
 
 var level: Level
 var player: Player
@@ -13,6 +17,12 @@ var fx_layer: Node2D
 var camera: Camera2D
 var hud: Hud
 var inventory: InventoryUI
+var roof_layer: Node2D
+var player_light: PointLight2D
+var active_zone: ExtractZone = null
+var time_left := RAID_TIME
+var reinforce_t := REINFORCE_EVERY
+var death_reason := ""
 var state := "play"  # play, dead, extracted
 var extract_t := 0.0
 var run_time := 0.0
@@ -27,10 +37,14 @@ func _ready() -> void:
 	Controls.setup()
 	Engine.time_scale = 1.0
 	randomize()
+	add_to_group("game")
+	var moon := CanvasModulate.new()
+	moon.color = Lights.MOONLIGHT
+	add_child(moon)
 	level = Level.new()
 	level.load_from_file(MAP_PATH)
 	add_child(level)
-	level.build()
+	level.player_cell = level.player_cells.pick_random()
 
 	decals = Decals.new()
 	add_child(decals)
@@ -38,6 +52,18 @@ func _ready() -> void:
 	add_child(entities)
 	fx_layer = Node2D.new()
 	add_child(fx_layer)
+	roof_layer = Node2D.new()
+	add_child(roof_layer)
+	level.build(roof_layer)
+
+	for c in level.lamp_cells:
+		_spawn_light("lamp", c)
+	for c in level.fire_cells:
+		_spawn_light("fire", c)
+	for kind in level.extract_groups:
+		var z := ExtractZone.new()
+		z.setup(kind, level.extract_groups[kind])
+		entities.add_child(z)
 
 	for s in level.pickup_spawns:
 		var id: String = s[1]
@@ -60,9 +86,11 @@ func _ready() -> void:
 	player.game = self
 	player.position = level.cell_to_world(level.player_cell)
 	entities.add_child(player)
+	player_light = Lights.make(Color(0.75, 0.85, 1.0), 280.0, 0.75, true)
+	player.add_child(player_light)
 
 	camera = Camera2D.new()
-	camera.zoom = Vector2(CAMERA_ZOOM, CAMERA_ZOOM)
+	camera.zoom = Vector2(ZOOM_OUTDOOR, ZOOM_OUTDOOR)
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 9.0
 	camera.position = player.position
@@ -82,22 +110,77 @@ func _process(delta: float) -> void:
 	if state != "play" and Input.is_action_just_pressed("restart"):
 		get_tree().reload_current_scene()
 		return
+	var cell := level.world_to_cell(player.global_position)
 	if state == "play":
 		run_time += delta
-		if level.is_extract(level.world_to_cell(player.global_position)):
-			extract_t += delta
-			if extract_t >= EXTRACT_TIME:
-				_on_extracted()
-		else:
-			extract_t = 0.0
+		_tick_raid_clock(delta)
+		_tick_extraction(delta, cell)
+	var inside := level.building_at(cell)
+	for roof in level.roofs:
+		roof.target_alpha = 0.0 if roof.index == inside else 1.0
 
-	# Look-ahead toward the cursor, computed in screen space to avoid camera feedback.
+	# Zoom in indoors; look-ahead toward the cursor, computed in screen space to avoid camera feedback.
+	var zoom_target := ZOOM_INDOOR if inside >= 0 else ZOOM_OUTDOOR
+	var zoom := move_toward(camera.zoom.x, zoom_target, delta * 1.2)
+	camera.zoom = Vector2(zoom, zoom)
 	var vp := get_viewport()
 	var screen_off := vp.get_mouse_position() - vp.get_visible_rect().size * 0.5
 	var look := 0.75 if Input.is_action_pressed("look") else 0.3
-	camera.position = player.global_position + screen_off / CAMERA_ZOOM * look
+	camera.position = player.global_position + screen_off / zoom * look
 	shake = maxf(0.0, shake - delta * 30.0)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
+
+
+func _spawn_light(kind: String, c: Vector2i) -> void:
+	var l := LightSource.new()
+	l.kind = kind
+	l.position = level.cell_to_world(c)
+	entities.add_child(l)
+
+
+func zone_at(cell: Vector2i) -> ExtractZone:
+	for z in get_tree().get_nodes_in_group("extracts"):
+		if z.contains(cell):
+			return z
+	return null
+
+
+func _tick_extraction(delta: float, cell: Vector2i) -> void:
+	active_zone = zone_at(cell)
+	if active_zone != null and active_zone.is_open(self):
+		extract_t += delta
+		if extract_t >= EXTRACT_TIME:
+			_on_extracted()
+	else:
+		extract_t = 0.0
+
+
+## Late in the raid Centra sends patrols in from the map edges; at zero Toa is lost.
+func _tick_raid_clock(delta: float) -> void:
+	time_left -= delta
+	if time_left <= 0.0:
+		death_reason = "시간 초과 — 폐허에서 실종됐다"
+		player.take_hit(Vector2.DOWN, false)
+		return
+	if RAID_TIME - time_left < REINFORCE_AFTER:
+		return
+	reinforce_t -= delta
+	if reinforce_t > 0.0:
+		return
+	reinforce_t = REINFORCE_EVERY
+	var pos := level.random_edge_floor()
+	for i in 2:
+		var e := Enemy.new()
+		e.game = self
+		e.level = level
+		e.weapon_id = ["pistol", "smg", "rifle"].pick_random()
+		e.position = level.random_floor_near(pos, 2)
+		e.alerted = true
+		entities.add_child(e)
+		total_enemies += 1
+		e.hear(player.global_position)
+	if REINFORCE_AFTER + REINFORCE_EVERY > RAID_TIME - time_left:
+		toast("센트라 순찰대가 구역에 진입했다")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -148,6 +231,9 @@ func interact_target(pos: Vector2) -> Dictionary:
 	var downed = nearest_downed(pos, Player.EXECUTE_RANGE)
 	if downed != null:
 		return {"type": "execute", "node": downed}
+	var zone := zone_at(level.world_to_cell(pos))
+	if zone != null and zone.kind == "flare" and zone.flare_state == "idle":
+		return {"type": "flare", "node": zone}
 	var p = nearest_pickup(pos, Player.PICKUP_RANGE)
 	var c = nearest_container(pos, Player.PICKUP_RANGE + 6.0)
 	if p != null and (c == null or pos.distance_to(p.global_position) <= pos.distance_to(c.global_position)):
@@ -295,6 +381,7 @@ func on_player_died(dir: Vector2) -> void:
 
 func _on_extracted() -> void:
 	state = "extracted"
+	active_zone.consume(self)
 	inventory.close()
 	extracted_value = carried_value()
 	extracted_count = player.bag.items.size() + player.slots.size() - player.slots.count(null)

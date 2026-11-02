@@ -123,6 +123,8 @@ func interact() -> void:
 			_pick_up(target["node"])
 		"search":
 			game.inventory.open(target["node"])
+		"flare":
+			target["node"].fire_flare(game)
 
 
 func _pick_up(p: WeaponPickup) -> void:
