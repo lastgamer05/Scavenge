@@ -43,7 +43,11 @@ func _ready() -> void:
 	cs.shape = shape
 	add_child(cs)
 	add_to_group("enemies")
-	rig = CharacterRig.new("centra" if centra else "scav:%d" % (randi() % 3))
+	var look := "centra"
+	if not centra:
+		# Contractors carry the heavier guns; scavengers make do with the rest.
+		look = "pmc" if weapon_id in ["smg", "rifle", "shotgun"] and randf() < 0.6 else "scav"
+	rig = CharacterRig.new(look)
 	add_child(rig)
 	mark_node = Node2D.new()
 	mark_node.draw.connect(_draw_mark)
