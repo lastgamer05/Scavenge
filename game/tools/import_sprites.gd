@@ -11,7 +11,7 @@ extends SceneTree
 const POSES := ["unarmed", "rifle", "pistol", "melee"]  # top-left, top-right, bottom-left, bottom-right
 const TARGET_H := 18.0  # art pixels from shoulder to shoulder in the unarmed pose
 const OUT_DIR := "res://assets/sprites/"
-const MIN_PIECE := 12
+const MIN_PIECE := 24
 
 
 func _initialize() -> void:

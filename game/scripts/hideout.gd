@@ -85,7 +85,7 @@ func _ready() -> void:
 	player.add_child(Lights.make(Color(0.95, 0.85, 0.7), 220.0, 0.6, false))
 
 	camera = Camera2D.new()
-	camera.zoom = Vector2(2.0, 2.0)
+	camera.zoom = Vector2(1.5, 1.5)  # same as the raid outdoors
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 8.0
 	camera.position = player.position

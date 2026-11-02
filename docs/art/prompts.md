@@ -44,3 +44,7 @@ Feedback: C is not real pixel art; A's style is right but the camera must be ful
 - E_scav / E_pmc / E_centra: enemies generated with gen_b as reference, same layout.
 
 Sheets are imported with `game/tools/import_sprites.gd` (magenta key, majority-vote downsample to an 18px shoulder height, speck removal, pivot centred) into `game/assets/sprites/<name>_<pose>.png`.
+
+# Sprite round 3 (symmetric overhead Toa)
+
+Feedback: the camera was not perfectly overhead; shoulders looked lopsided. Regenerated Toa with an exact orthographic, left-right symmetric prompt (gen_b as style reference). **F_sym_a chosen** and imported as toa_*. Enemies still use round 2 sheets.

@@ -136,7 +136,7 @@ static func _tile_wood(v: int) -> Image:
 			var gx := rng.randi() % (T - 3)
 			_fill(img, Rect2i(gx, row * 4 + 1, 3, 1), c.darkened(0.1))
 	if v == 2:
-		_ellipse(img, rng.randf_range(5, 11), rng.randf_range(5, 11), 4.0, 2.5, Color(0.3, 0.06, 0.05, 1))
+		_ellipse(img, rng.randf_range(5, 11), rng.randf_range(5, 11), 4.0, 2.5, Color8(82, 58, 38))  # old water stain
 	elif v == 3:
 		for i in 5:
 			img.set_pixel(rng.randi() % T, rng.randi() % T, Color8(150, 150, 140))
