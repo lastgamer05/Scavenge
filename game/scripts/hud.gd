@@ -53,7 +53,7 @@ func _ready() -> void:
 	hint.modulate = Color(1, 1, 1, 0.7)
 	var cross := Crosshair.new()
 	cross.hud = self
-	cross.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(cross)
 
@@ -71,7 +71,7 @@ func _label(font_size: int, pos: Vector2) -> Label:
 
 func _centered(font_size: int, y_ratio: float) -> Label:
 	var l := _label(font_size, Vector2.ZERO)
-	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	l.anchor_top = y_ratio
