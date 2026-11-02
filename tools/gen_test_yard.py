@@ -2,7 +2,8 @@
 
 Legend: # wall, . indoor floor, , outdoor ground, X extraction,
 P player, E/F/G/H enemy (pistol/smg/shotgun/bat),
-p/q/s/g/r/b/k weapon pickup (pistol/silenced/smg/shotgun/rifle/bat/knife).
+p/q/s/g/r/b/k weapon pickup (pistol/silenced/smg/shotgun/rifle/bat/knife),
+c/l/v container (crate/locker/safe).
 """
 from pathlib import Path
 
@@ -62,6 +63,10 @@ for x, y, c in [(22, 9, "E"), (25, 12, "H"), (35, 11, "F"), (22, 21, "G"), (36, 
 
 for x, y, c in [(5, 33, "k"), (10, 30, "q"), (37, 8, "g"), (50, 31, "r"), (20, 24, "s"),
                 (26, 8, "b"), (14, 34, "p")]:
+    put(x, y, c)
+
+for x, y, c in [(15, 30, "c"), (40, 33, "c"), (9, 4, "c"), (46, 4, "c"), (19, 7, "l"),
+                (38, 14, "l"), (19, 25, "l"), (39, 25, "l"), (51, 26, "l"), (39, 7, "v"), (45, 32, "v")]:
     put(x, y, c)
 
 out = Path(__file__).resolve().parent.parent / "game" / "data" / "maps" / "test_yard.txt"

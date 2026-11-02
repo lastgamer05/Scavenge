@@ -8,7 +8,8 @@ const EXECUTE_RANGE := 38.0
 
 var game: Node
 var alive := true
-var slots: Array = [null, null]  # each null or {"id": String, "ammo": int}
+var slots: Array = [null, null]  # each null or an ItemDB item
+var bag := InvGrid.new(6, 4)
 var current := 0
 var fire_t := 0.0
 var swing_t := 0.0
@@ -29,11 +30,15 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not alive:
 		return
-	velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * SPEED
+	velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * SPEED * game.speed_mult()
 	move_and_slide()
-	aim = (get_global_mouse_position() - global_position).angle()
 	fire_t -= delta
 	swing_t = maxf(0.0, swing_t - delta)
+	queue_redraw()
+	# With the bag open the mouse belongs to the UI; Toa can only walk.
+	if game.inventory.visible:
+		return
+	aim = (get_global_mouse_position() - global_position).angle()
 
 	var w = slots[current]
 	var wd := WeaponDB.get_data(current_id())
@@ -42,15 +47,12 @@ func _physics_process(delta: float) -> void:
 		_attack(w, wd)
 	if Input.is_action_just_pressed("throw") and w != null:
 		_throw()
-	if Input.is_action_just_pressed("interact"):
-		_interact()
 	if Input.is_action_just_pressed("swap"):
 		current = 1 - current
 	if Input.is_action_just_pressed("slot_1"):
 		current = 0
 	if Input.is_action_just_pressed("slot_2"):
 		current = 1
-	queue_redraw()
 
 
 func current_id() -> String:
@@ -108,17 +110,23 @@ func _throw() -> void:
 	game.spawn_pickup(w["id"], w["ammo"], global_position + aim_dir() * 14.0, aim_dir() * 720.0, true)
 
 
-func _interact() -> void:
-	var downed = game.nearest_downed(global_position, EXECUTE_RANGE)
-	if downed != null:
-		downed.kill((downed.global_position - global_position).normalized())
-		swing_t = 0.2
-		game.make_noise(global_position, 60.0, self)
-		return
-	var p = game.nearest_pickup(global_position, PICKUP_RANGE)
-	if p == null:
-		return
-	var item := {"id": p.weapon_id, "ammo": p.ammo}
+## E: execute a downed enemy, pick up a weapon or search a container, whichever is closest.
+func interact() -> void:
+	var target: Dictionary = game.interact_target(global_position)
+	match target.get("type", ""):
+		"execute":
+			var downed = target["node"]
+			downed.kill((downed.global_position - global_position).normalized())
+			swing_t = 0.2
+			game.make_noise(global_position, 60.0, self)
+		"pickup":
+			_pick_up(target["node"])
+		"search":
+			game.inventory.open(target["node"])
+
+
+func _pick_up(p: WeaponPickup) -> void:
+	var item := ItemDB.make(p.weapon_id, p.ammo)
 	if slots[current] == null:
 		slots[current] = item
 	elif slots[1 - current] == null:

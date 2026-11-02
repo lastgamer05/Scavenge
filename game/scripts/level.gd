@@ -6,6 +6,7 @@ const CELL := 32
 const ENEMY_CHARS := {"E": "pistol", "F": "smg", "G": "shotgun", "H": "bat"}
 const PICKUP_CHARS := {"p": "pistol", "q": "silenced", "s": "smg", "g": "shotgun",
 	"r": "rifle", "b": "bat", "k": "knife"}
+const CONTAINER_CHARS := {"c": "crate", "l": "locker", "v": "safe"}
 const ExtractGlow := preload("res://scripts/extract_glow.gd")
 
 var rows: Array[String] = []
@@ -14,6 +15,7 @@ var height := 0
 var player_cell := Vector2i.ONE
 var enemy_spawns: Array = []  # [Vector2i, weapon_id]
 var pickup_spawns: Array = []  # [Vector2i, weapon_id]
+var container_spawns: Array = []  # [Vector2i, kind]
 var extract_cells: Array[Vector2i] = []
 var astar := AStarGrid2D.new()
 
@@ -26,6 +28,7 @@ func load_from_text(text: String) -> void:
 	rows.clear()
 	enemy_spawns.clear()
 	pickup_spawns.clear()
+	container_spawns.clear()
 	extract_cells.clear()
 	width = 0
 	for line in text.replace("\r", "").split("\n"):
@@ -48,6 +51,9 @@ func load_from_text(text: String) -> void:
 				c = _floor_near(row, x)
 			elif PICKUP_CHARS.has(c):
 				pickup_spawns.append([cell, PICKUP_CHARS[c]])
+				c = _floor_near(row, x)
+			elif CONTAINER_CHARS.has(c):
+				container_spawns.append([cell, CONTAINER_CHARS[c]])
 				c = _floor_near(row, x)
 			elif c == "X":
 				extract_cells.append(cell)

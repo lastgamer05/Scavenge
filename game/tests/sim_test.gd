@@ -48,9 +48,10 @@ func _process(_delta: float) -> bool:
 			_check(target2.is_down(), "thrown weapon stuns enemy")
 			_check(p.slots[0] == null, "thrown weapon leaves slot")
 			p.global_position = target2.global_position + Vector2(-20, 0)
-			p._interact()
+			p.interact()
 		55:
 			_check(target2.is_dead(), "execute kills downed enemy")
+			_test_loot(p)
 			var shooter: Enemy = null
 			for e in _enemies():
 				if not e.is_dead() and WeaponDB.is_gun(e.weapon_id):
@@ -62,3 +63,31 @@ func _process(_delta: float) -> bool:
 			print("sim finished: %d failure(s)" % failures)
 			quit(1 if failures > 0 else 0)
 	return false
+
+
+func _test_loot(p: Player) -> void:
+	var crate: LootContainer = null
+	for c in get_nodes_in_group("containers"):
+		if c.kind == "crate":
+			crate = c
+			break
+	crate.grid.items.clear()
+	crate.grid.auto_add(ItemDB.make("goldbar"))
+	p.global_position = crate.global_position + Vector2(10, 0)
+	p.interact()
+	_check(game.inventory.visible and game.inventory.other == crate, "E opens nearby crate")
+	_check(is_equal_approx(Engine.time_scale, 0.3), "bag slows time")
+	var gold = crate.grid.items[0]
+	game.inventory._quick_move(gold, crate.grid)
+	_check(p.bag.has(gold) and crate.grid.items.is_empty(), "shift-click moves item into bag")
+	_check(game.carried_value() >= 800, "carried value counts bag")
+	game.inventory.close()
+	_check(not game.inventory.visible and is_equal_approx(Engine.time_scale, 1.0), "closing restores time")
+	p.bag.remove(gold)
+	game.drop_item(gold)
+	var pile = game.nearest_container(p.global_position, 40.0)
+	_check(pile != null and pile.kind == "pile" and pile.grid.has(gold), "dropped item lands in a pile")
+	for i in 8:
+		p.bag.auto_add(ItemDB.make("fuel"))
+	_check(game.speed_mult() < 1.0, "heavy bag slows movement")
+	p.bag.items.clear()

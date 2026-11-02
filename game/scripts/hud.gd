@@ -10,6 +10,8 @@ class Crosshair extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
+		if hud.game.inventory.visible:
+			return
 		var m := get_viewport().get_mouse_position()
 		var col := Color(1.0, 1.0, 1.0, 0.9)
 		draw_arc(m, 7.0, 0.0, TAU, 20, col, 1.5)
@@ -49,7 +51,7 @@ func _ready() -> void:
 	hint.offset_left = 20
 	hint.offset_top = -44
 	hint.offset_bottom = -12
-	hint.text = "WASD 이동   좌클릭 공격   우클릭 던지기   E 줍기/처형   Q 무기 교체   Shift 멀리 보기"
+	hint.text = "WASD 이동   좌클릭 공격   우클릭 던지기   E 줍기/뒤지기/처형   Tab 가방   Q 무기 교체   Shift 멀리 보기"
 	hint.modulate = Color(1, 1, 1, 0.7)
 	var cross := Crosshair.new()
 	cross.hud = self
@@ -96,6 +98,10 @@ func _process(delta: float) -> void:
 			if not wd["melee"]:
 				txt += "  %d/%d" % [w["ammo"], wd["ammo"]]
 		lines.append("%s[%d] %s" % [mark, i + 1, txt])
+	lines.append("")
+	lines.append("가방 %.1fkg   $%d" % [game.carried_weight(), game.carried_value()])
+	if game.speed_mult() < 1.0:
+		lines.append("과적: 이동속도 %d%%" % roundi(game.speed_mult() * 100.0))
 	slots_label.text = "\n".join(lines)
 
 	var secs := int(game.run_time)
@@ -103,23 +109,28 @@ func _process(delta: float) -> void:
 
 	prompt_label.text = ""
 	if game.state == "play":
-		if game.nearest_downed(p.global_position, Player.EXECUTE_RANGE) != null:
-			prompt_label.text = "E  처형"
-		else:
-			var pk = game.nearest_pickup(p.global_position, Player.PICKUP_RANGE)
-			if pk != null:
+		var target: Dictionary = game.interact_target(p.global_position)
+		match target.get("type", ""):
+			"execute":
+				prompt_label.text = "E  처형"
+			"pickup":
+				var pk = target["node"]
 				var wd := WeaponDB.get_data(pk.weapon_id)
 				var extra := "" if wd["melee"] else "  (%d발)" % pk.ammo
 				prompt_label.text = "E  줍기: %s%s" % [wd["name"], extra]
+			"search":
+				prompt_label.text = "E  뒤지기: %s" % target["node"].title
+		if game.inventory.visible:
+			prompt_label.text = ""
 		if game.extract_t > 0.0:
 			prompt_label.text = "탈출 중...  %.1f" % (game.EXTRACT_TIME - game.extract_t)
 
 	match game.state:
 		"dead":
-			center_label.text = "사망\n\n[R] 다시 시작"
+			center_label.text = "사망\n\n들고 있던 $%d 어치를 잃었습니다\n\n[R] 다시 시작" % game.carried_value()
 		"extracted":
-			center_label.text = "탈출 성공\n\n처치 %d/%d    시간 %02d:%02d\n\n[R] 다시 하기" % [
-				game.kills, game.total_enemies, secs / 60, secs % 60]
+			center_label.text = "탈출 성공\n\n회수 가치 $%d  (%d개)\n처치 %d/%d    시간 %02d:%02d\n\n[R] 다시 하기" % [
+				game.extracted_value, game.extracted_count, game.kills, game.total_enemies, secs / 60, secs % 60]
 		_:
 			center_label.text = ""
 
