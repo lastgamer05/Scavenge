@@ -37,14 +37,18 @@ func _ready() -> void:
 	info_label = _label(22, Vector2(0, 16))
 	info_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	info_label.position = Vector2(-420, 16)
-	info_label.size = Vector2(400, 40)
+	info_label.offset_left = -420
+	info_label.offset_right = -20
+	info_label.offset_top = 16
+	info_label.offset_bottom = 56
 	prompt_label = _centered(22, 0.68)
 	toast_label = _centered(22, 0.76)
 	center_label = _centered(44, 0.32)
-	var hint := _label(11, Vector2(20, 0))
+	var hint := _label(22, Vector2(20, 0))
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	hint.position = Vector2(20, -34)
+	hint.offset_left = 20
+	hint.offset_top = -44
+	hint.offset_bottom = -12
 	hint.text = "WASD 이동   좌클릭 공격   우클릭 던지기   E 줍기/처형   Q 무기 교체   Shift 멀리 보기"
 	hint.modulate = Color(1, 1, 1, 0.7)
 	var cross := Crosshair.new()
