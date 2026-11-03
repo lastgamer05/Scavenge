@@ -3,6 +3,7 @@ extends Node2D
 ## Ray-cast projectile: sweeps from last to next position each physics frame.
 
 const SPEED := 1500.0
+const ENEMY_SPEED := 900.0  # slow enough to sidestep at range
 
 var velocity := Vector2.ZERO
 var from_player := false

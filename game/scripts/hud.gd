@@ -64,11 +64,12 @@ class ZoneMarkers extends Control:
 		draw_string(font, edge - dir * 22.0 + Vector2(-60, 4), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
 
 class SoundPings extends Control:
-	## Arcs around Toa pointing at what she hears but cannot see: gunshots loud and red,
-	## footsteps faint and grey. Each keeps its world position, so the arc turns as she moves.
-	const LIFE := {true: 1.2, false: 0.5}
+	## Arcs around Toa pointing at what she hears but cannot see (gunshots red, footsteps grey)
+	## and at where a hit came from (a wide red flash). Each keeps its world position, so the arc
+	## turns as she moves.
+	const LIFE := {"shot": 1.2, "step": 0.5, "hit": 0.9}
 	var hud: Hud
-	var pings: Array = []  # [world pos, loud, time left]
+	var pings: Array = []  # [world pos, kind, time left]
 
 	func _process(delta: float) -> void:
 		for pg in pings:
@@ -83,16 +84,19 @@ class SoundPings extends Control:
 		var xf := get_viewport().get_canvas_transform()
 		var me: Vector2 = xf * game.player.global_position
 		for pg in pings:
-			var loud: bool = pg[1]
-			var k: float = pg[2] / LIFE[loud]
+			var kind: String = pg[1]
+			var k: float = pg[2] / LIFE[kind]
 			var a: float = (xf * (pg[0] as Vector2) - me).angle()
-			var col := Color(1.0, 0.45, 0.35, 0.9 * k) if loud else Color(0.85, 0.85, 0.85, 0.5 * k)
-			var r := 64.0 if loud else 52.0
-			draw_arc(me, r, a - 0.3, a + 0.3, 12, col, 4.0 if loud else 2.0)
-			if loud:
-				var tip := me + Vector2.from_angle(a) * (r + 10.0)
-				draw_colored_polygon(PackedVector2Array([tip, me + Vector2.from_angle(a - 0.12) * (r + 2.0),
-					me + Vector2.from_angle(a + 0.12) * (r + 2.0)]), col)
+			match kind:
+				"step":
+					draw_arc(me, 52.0, a - 0.3, a + 0.3, 12, Color(0.85, 0.85, 0.85, 0.5 * k), 2.0)
+				"shot":
+					var col := Color(1.0, 0.45, 0.35, 0.9 * k)
+					draw_arc(me, 64.0, a - 0.3, a + 0.3, 12, col, 4.0)
+					draw_colored_polygon(PackedVector2Array([me + Vector2.from_angle(a) * 74.0,
+						me + Vector2.from_angle(a - 0.12) * 66.0, me + Vector2.from_angle(a + 0.12) * 66.0]), col)
+				"hit":
+					draw_arc(me, 84.0, a - 0.6, a + 0.6, 20, Color(1.0, 0.15, 0.1, 0.85 * k), 8.0)
 
 
 var game: Node
@@ -125,7 +129,7 @@ func _ready() -> void:
 	hint.offset_left = 20
 	hint.offset_top = -44
 	hint.offset_bottom = -12
-	hint.text = "WASD 이동   좌클릭 공격   우클릭 던지기   E 줍기/뒤지기/처형   Tab 가방   Q 무기 교체   Shift 멀리 보기"
+	hint.text = "WASD 이동  좌클릭 공격  우클릭 던지기  E 줍기/처형  Tab 가방  Q 교체  F 방탄판  G 치료  Shift 멀리 보기"
 	hint.modulate = Color(1, 1, 1, 0.7)
 	subtitle_label = _centered(22, 0.84)
 	subtitle_label.add_theme_color_override("font_color", Color(0.8, 0.9, 1.0))
@@ -178,9 +182,9 @@ func say(who: String, text: String) -> void:
 	subtitle_t = 5.0
 
 
-## Something Toa heard but cannot see; loud for gunshots, quiet for footsteps.
-func ping(pos: Vector2, loud: bool) -> void:
-	pings.pings.append([pos, loud, SoundPings.LIFE[loud]])
+## Something Toa heard but cannot see ("shot", "step"), or where a hit came from ("hit").
+func ping(pos: Vector2, kind: String) -> void:
+	pings.pings.append([pos, kind, SoundPings.LIFE[kind]])
 
 
 func toast(text: String) -> void:
@@ -202,6 +206,9 @@ func _process(delta: float) -> void:
 				txt += "  %d/%d" % [w["ammo"], wd["ammo"]]
 		lines.append("%s[%d] %s" % [mark, i + 1, txt])
 	lines.append("")
+	var plates := p.bag.items.filter(func(i): return i["id"] == "plate").size()
+	lines.append("체력 %s%s   방탄판 %s (+%d)" % ["■".repeat(p.hp), "□".repeat(Player.MAX_HP - p.hp),
+		"■" if p.armor else "□", plates])
 	lines.append("가방 %.1fkg   $%d" % [game.carried_weight(), game.carried_value()])
 	if game.speed_mult() < 1.0:
 		lines.append("과적: 이동속도 %d%%" % roundi(game.speed_mult() * 100.0))
@@ -233,6 +240,8 @@ func _process(delta: float) -> void:
 		if game.active_zone != null:
 			var reason: String = game.active_zone.block_reason(game)
 			prompt_label.text = "[%s]  %s" % [game.active_zone.title, reason if reason != "" else "탈출 가능"]
+		if p.use_id != "":
+			prompt_label.text = "%s  %.1f" % ["방탄판 끼우는 중..." if p.use_id == "plate" else "치료 중...", p.use_t]
 		if game.inventory.visible:
 			prompt_label.text = ""
 		if game.extract_t > 0.0:

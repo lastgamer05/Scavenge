@@ -47,7 +47,8 @@ func _process(_delta: float) -> bool:
 		5:
 			for e in _enemies():
 				e.set_physics_process(false)
-			target = _enemies()[0]
+			# A scavenger: contractors take two bullets.
+			target = _enemies().filter(func(e): return e.hp == 1)[0]
 			p.global_position = _spot_near(target, 120.0)
 			p.slots[0] = ItemDB.make("pistol")
 			p.current = 0
@@ -58,7 +59,7 @@ func _process(_delta: float) -> bool:
 			_check(p.slots[0]["ammo"] == 11, "shot uses ammo")
 			_check(game.kills == 1, "kill counted")
 			_check(game.nearest_pickup(target.global_position, 200.0) != null, "dead enemy dropped weapon")
-			target2 = _enemies()[1]
+			target2 = _enemies().filter(func(e): return e != target and e.hp == 2)[0]
 			p.global_position = _spot_near(target2, 90.0)
 			p.slots[0] = ItemDB.make("smg", 0)
 			p.aim = (target2.global_position - p.global_position).angle()
@@ -69,7 +70,7 @@ func _process(_delta: float) -> bool:
 			p.global_position = target2.global_position + (p.global_position - target2.global_position).normalized() * 20.0
 			p.interact()
 		55:
-			_check(target2.is_dead(), "execute kills downed enemy")
+			_check(target2.is_dead(), "execute kills a downed contractor outright")
 			_test_loot(p)
 			_test_extraction(p)
 			p.global_position = game.level.cell_to_world(game.level.buildings[0][0])
@@ -78,6 +79,7 @@ func _process(_delta: float) -> bool:
 			_check(game.level.roofs[1].target_alpha == 1.0, "other roofs stay")
 			_test_story()
 			_test_animation()
+			_test_player_hits(p)
 			for e in _enemies():
 				if not e.is_dead() and WeaponDB.is_gun(e.weapon_id):
 					shooter = e
@@ -85,7 +87,7 @@ func _process(_delta: float) -> bool:
 			shooter.alerted = true
 			shooter.set_physics_process(true)
 			p.global_position = _spot_near(shooter, 60.0)
-		320:
+		900:
 			if p.alive:
 				print("debug shooter ", shooter.weapon_id, " state ", shooter.state, " dist ", shooter.global_position.distance_to(p.global_position), " los ", game.has_los(shooter.global_position, p.global_position), " cell ", game.level.world_to_cell(shooter.global_position))
 			_check(not p.alive and game.state == "dead", "enemy shoots player dead")
@@ -171,6 +173,36 @@ func _test_story() -> void:
 	_check(boss.is_dead(), "third hit drops Leon")
 	var corpse = game.nearest_container(boss.global_position, 40.0)
 	_check(corpse != null and corpse.grid.items.any(func(i): return i["id"] == "dogtag"), "Leon's corpse holds the dog tag")
+
+
+func _test_player_hits(p: Player) -> void:
+	_check(p.hp == Player.MAX_HP and not p.armor, "Toa starts the raid unhurt, no plate packed")
+	p.take_hit(Vector2.RIGHT, false)
+	_check(p.alive and p.hp == Player.MAX_HP - 1, "one hit costs one hit point")
+	p.take_hit(Vector2.RIGHT, false)
+	_check(p.hp == Player.MAX_HP - 1, "grace period swallows the next pellet")
+	p.hurt_t = 0.0
+	p.bag.auto_add(ItemDB.make("plate"))
+	p._start_use("plate")
+	p._tick_use(Player.USE_TIME["plate"] + 0.01)
+	_check(p.armor and p.bag.items.is_empty(), "F slots a plate from the bag")
+	p.take_hit(Vector2.RIGHT, false)
+	_check(not p.armor and p.hp == Player.MAX_HP - 1, "plate stops a hit and breaks")
+	p.hurt_t = 0.0
+	p.bag.auto_add(ItemDB.make("meds"))
+	p._start_use("meds")
+	p._tick_use(Player.USE_TIME["meds"] + 0.01)
+	_check(p.hp == Player.MAX_HP and p.bag.items.is_empty(), "meds heal")
+	var pmc: Enemy = null
+	for e in _enemies():
+		if not e.is_dead() and e.hp == 2:
+			pmc = e
+			break
+	if pmc != null:
+		pmc.take_hit(Vector2.RIGHT, true)
+		_check(not pmc.is_dead() and pmc.hp == 1, "contractor survives the first bullet")
+		pmc.take_hit(Vector2.RIGHT, true)
+		_check(pmc.is_dead(), "second bullet drops the contractor")
 
 
 func _test_animation() -> void:

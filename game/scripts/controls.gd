@@ -16,6 +16,8 @@ static func setup() -> void:
 	_keys("rotate", [KEY_R])
 	_keys("inventory", [KEY_TAB, KEY_I])
 	_keys("look", [KEY_SHIFT])
+	_keys("plate", [KEY_F])
+	_keys("meds", [KEY_G])
 	_mouse("fire", MOUSE_BUTTON_LEFT)
 	_mouse("throw", MOUSE_BUTTON_RIGHT)
 

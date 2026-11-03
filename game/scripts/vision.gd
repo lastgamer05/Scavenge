@@ -103,7 +103,7 @@ func _process(delta: float) -> void:
 		steps[e] = steps.get(e, 0.0) - delta
 		if steps[e] <= 0.0:
 			steps[e] = STEP_EVERY
-			game.hud.ping(e.global_position, false)
+			game.hud.ping(e.global_position, "step")
 	for e in ghosts.keys():
 		ghosts[e][1] -= delta
 		if ghosts[e][1] <= 0.0 or not is_instance_valid(e):

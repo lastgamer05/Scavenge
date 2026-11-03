@@ -18,6 +18,7 @@ const DATA := {
 	"laptop": {"name": "노트북", "size": Vector2i(2, 2), "value": 500, "weight": 2.5, "color": TECH},
 	"radio": {"name": "무전기", "size": Vector2i(1, 2), "value": 220, "weight": 0.8, "color": TECH},
 	"meds": {"name": "의약품", "size": Vector2i(1, 2), "value": 250, "weight": 0.5, "color": MEDICAL},
+	"plate": {"name": "방탄판", "size": Vector2i(2, 1), "value": 160, "weight": 1.5, "color": MEDICAL},
 	"cans": {"name": "통조림", "size": Vector2i(1, 1), "value": 40, "weight": 0.4, "color": SUPPLY},
 	"parts": {"name": "기계 부품", "size": Vector2i(2, 1), "value": 120, "weight": 1.5, "color": SUPPLY},
 	"fuel": {"name": "연료통", "size": Vector2i(2, 2), "value": 200, "weight": 5.0, "color": SUPPLY},
@@ -43,13 +44,13 @@ const DATA := {
 
 const LOOT := {
 	"crate": {"title": "나무 상자", "size": Vector2i(4, 4), "rolls": Vector2i(2, 4),
-		"pool": ["cans", "cans", "parts", "fuel", "cash", "radio", "ammo_box"]},
+		"pool": ["cans", "cans", "parts", "fuel", "cash", "radio", "ammo_box", "plate"]},
 	"locker": {"title": "사물함", "size": Vector2i(4, 5), "rolls": Vector2i(2, 4),
-		"pool": ["meds", "meds", "gpu", "laptop", "radio", "docs", "watch"]},
+		"pool": ["meds", "meds", "plate", "gpu", "laptop", "radio", "docs", "watch"]},
 	"safe": {"title": "금고", "size": Vector2i(3, 3), "rolls": Vector2i(2, 3),
 		"pool": ["goldbar", "goldbar", "watch", "cash", "cash", "docs"]},
 	"corpse": {"title": "시체", "size": Vector2i(4, 3), "rolls": Vector2i(0, 2),
-		"pool": ["cash", "cans", "meds", "watch", "ammo_box"]},
+		"pool": ["cash", "cans", "meds", "watch", "ammo_box", "plate"]},
 	"pile": {"title": "버린 물건", "size": Vector2i(6, 4), "rolls": Vector2i(0, 0), "pool": []},
 	"cache": {"title": "작은 꾸러미", "size": Vector2i(2, 2), "rolls": Vector2i(0, 0), "pool": []},
 	# Hideout: never filled with random loot.

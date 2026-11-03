@@ -4,7 +4,7 @@ extends Node2D
 
 const MAP_PATH := "res://data/maps/hideout.txt"
 const ROLE_CHARS := {"A": "leader", "W": "weapons", "D": "doctor", "J": "junk", "I": "informant"}
-const SHOP_STOCK := ["pistol", "silenced", "smg", "shotgun", "rifle", "bat", "knife"]
+const SHOP_STOCK := ["pistol", "silenced", "smg", "shotgun", "rifle", "bat", "knife", "plate"]
 const BUY_MARKUP := 1.5
 const TALK_RANGE := 52.0
 const LINES := {
@@ -433,7 +433,7 @@ func sell_rate(kind: String, item: Dictionary) -> float:
 	var id: String = item["id"]
 	match kind:
 		"weapon_shop":
-			return 0.9 if ItemDB.is_weapon(id) else 0.0
+			return 0.9 if ItemDB.is_weapon(id) or id == "plate" else 0.0
 		"doctor":
 			return 1.4 if id == "meds" else 0.0
 		"junk":

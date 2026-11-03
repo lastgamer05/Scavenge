@@ -104,6 +104,7 @@ func _ready() -> void:
 	player.position = level.cell_to_world(level.player_cell)
 	entities.add_child(player)
 	_load_loadout()
+	player.auto_plate()
 	player_light = Lights.make(Color(0.75, 0.85, 1.0), 280.0, 0.75, true)
 	player.add_child(player_light)
 
@@ -262,7 +263,7 @@ func _tick_raid_clock(delta: float) -> void:
 	time_left -= delta
 	if time_left <= 0.0:
 		death_reason = "시간 초과 — 폐허에서 실종됐다"
-		player.take_hit(Vector2.DOWN, false)
+		player.die(Vector2.DOWN)
 		return
 	if RAID_TIME - time_left < REINFORCE_AFTER:
 		return
@@ -382,7 +383,7 @@ func spawn_bullet(pos: Vector2, angle: float, from_player: bool, shooter: RID) -
 	var b := Bullet.new()
 	b.game = self
 	b.position = pos
-	b.velocity = Vector2.from_angle(angle) * Bullet.SPEED
+	b.velocity = Vector2.from_angle(angle) * (Bullet.SPEED if from_player else Bullet.ENEMY_SPEED)
 	b.from_player = from_player
 	b.exclude = [shooter]
 	fx_layer.add_child(b)
@@ -438,7 +439,7 @@ func has_los(a: Vector2, b: Vector2) -> bool:
 func make_noise(pos: Vector2, radius: float, source: Node) -> void:
 	if source is Enemy and not vision.can_see(source):
 		if player.global_position.distance_to(pos) < radius * 1.6:
-			hud.ping(pos, true)
+			hud.ping(pos, "shot")
 	elif radius >= 150.0:
 		spawn_fx("noise", pos, radius, 0.5)
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -480,6 +481,12 @@ func on_enemy_killed(e: Enemy, dir: Vector2) -> void:
 	add_shake(5.0)
 	if kills == total_enemies:
 		toast("구역 정리 완료 — 탈출 지점으로")
+
+
+## Toa took a hit but may still be standing: show where it came from.
+func on_player_hurt(dir: Vector2) -> void:
+	add_shake(8.0)
+	hud.ping(player.global_position - dir * 200.0, "hit")
 
 
 func on_player_died(dir: Vector2) -> void:

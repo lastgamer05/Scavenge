@@ -1,13 +1,18 @@
 class_name Enemy
 extends CharacterBody2D
-## Patrols, investigates noise, chases and shoots on sight. One hit kills.
+## Patrols, investigates noise, chases and shoots on sight. Scavengers drop to one bullet,
+## contractors to two; blades, bats and executions drop anyone but a boss.
+## On spotting Toa they shoulder the gun first (a visible aim line), then start loose and tighten.
 
 enum State { PATROL, INVESTIGATE, CHASE, SEARCH, STUNNED, DEAD }
 
 const SIGHT_RANGE := 440.0
 const HALF_FOV := 1.13  # ~65 degrees
 const CLOSE_SENSE := 48.0
-const REACTION := 0.45
+const REACTION := 0.8
+const TURN_RATE := 5.0  # radians per second while tracking Toa
+const AIM_SETTLE := 1.5  # seconds of sight until shots reach the weapon's own spread
+const AIM_LOOSE := 10.0  # extra spread in degrees on the first shot
 const SHOOT_RANGE := 340.0
 const LABEL_FONT := preload("res://assets/fonts/Galmuri11-Bold.ttf")
 
@@ -27,6 +32,7 @@ var stun_t := 0.0
 var search_t := 0.0
 var idle_t := 0.0
 var swing_t := -1.0
+var aim_t := 0.0
 var strike_t := 0.0  # after the hit lands: drives the swing / follow-through frames
 var home := Vector2.ZERO
 var death_dir := Vector2.RIGHT
@@ -51,6 +57,8 @@ func _ready() -> void:
 	if not centra:
 		# Contractors carry the heavier guns; scavengers make do with the rest.
 		look = "pmc" if weapon_id in ["smg", "rifle", "shotgun"] and randf() < 0.6 else "scav"
+	if look == "pmc" and hp == 1:
+		hp = 2
 	rig = CharacterRig.new(look)
 	add_child(rig)
 	mark_node = Node2D.new()
@@ -91,6 +99,7 @@ func _physics_process(delta: float) -> void:
 		if state != State.CHASE:
 			state = State.CHASE
 			react_t = REACTION
+			aim_t = 0.0
 			if not alerted:
 				alerted = true
 				game.alert_nearby(global_position, 260.0, last_known, self)
@@ -130,6 +139,7 @@ func _patrol(delta: float) -> void:
 func _chase(delta: float, sees: bool, player: Player) -> void:
 	var wd := WeaponDB.get_data(weapon_id)
 	if not sees:
+		aim_t = 0.0
 		repath_t -= delta
 		if path.is_empty() or repath_t <= 0.0:
 			_go_to(last_known)
@@ -139,8 +149,10 @@ func _chase(delta: float, sees: bool, player: Player) -> void:
 		return
 	path = PackedVector2Array()
 	var to := player.global_position - global_position
-	_turn_to(to.angle(), delta, 12.0)
+	_turn_to(to.angle(), delta, TURN_RATE)
 	react_t -= delta
+	aim_t += delta
+	mark_node.queue_redraw()
 	if wd["melee"]:
 		_tick_swing(delta, player, wd)
 		if swing_t < 0.0:
@@ -173,10 +185,11 @@ func _tick_swing(delta: float, player: Player, wd: Dictionary) -> void:
 
 
 func _shoot(wd: Dictionary) -> void:
-	fire_t = maxf(wd["cooldown"] * 2.4, 0.18)
+	fire_t = maxf(wd["cooldown"] * 3.0, 0.22)
+	var loose := 4.0 + AIM_LOOSE * (1.0 - clampf(aim_t / AIM_SETTLE, 0.0, 1.0))
 	var muzzle: Vector2 = global_position + Vector2.from_angle(facing) * (10.0 + wd["length"])
 	for i in wd["pellets"]:
-		var a := facing + deg_to_rad(randf_range(-wd["spread"] - 4.0, wd["spread"] + 4.0))
+		var a := facing + deg_to_rad(randf_range(-wd["spread"] - loose, wd["spread"] + loose))
 		game.spawn_bullet(muzzle, a, false, get_rid())
 	game.spawn_fx("flash", muzzle)
 	game.make_noise(global_position, wd["noise"], self)
@@ -234,11 +247,18 @@ func _recover() -> void:
 	_start_search(2.0)
 
 
+## Melee and executions: drops anyone but a boss outright.
 func kill(dir: Vector2) -> void:
+	if boss_name == "":
+		hp = 1
+	_damage(dir)
+
+
+func _damage(dir: Vector2) -> void:
 	if state == State.DEAD:
 		return
 	if hp > 1:
-		# Bosses soak hits: flinch, turn on the attacker, keep fighting.
+		# Bosses and contractors soak hits: flinch, turn on the attacker, keep fighting.
 		hp -= 1
 		alerted = true
 		last_known = game.player.global_position
@@ -261,7 +281,7 @@ func kill(dir: Vector2) -> void:
 
 
 func take_hit(dir: Vector2, _from_player: bool) -> void:
-	kill(dir)
+	_damage(dir)
 
 
 func _drop_weapon(dir: Vector2) -> void:
@@ -333,6 +353,11 @@ func _set_mark(m: String) -> void:
 
 
 func _draw_mark() -> void:
+	# Raising the gun: a thin aim line warns Toa before the first shot.
+	if state == State.CHASE and react_t > 0.0 and not WeaponDB.get_data(weapon_id)["melee"]:
+		var k := 1.0 - react_t / REACTION
+		var d := Vector2.from_angle(facing)
+		mark_node.draw_line(d * 14.0, d * (14.0 + 160.0 * k), Color(1.0, 0.3, 0.25, 0.35 + 0.4 * k), 1.0)
 	if boss_name != "" and state != State.DEAD:
 		mark_node.draw_string(LABEL_FONT, Vector2(-30, -30), boss_name, HORIZONTAL_ALIGNMENT_CENTER, 60, 11, Color(1, 0.5, 0.4))
 	if mark == "":

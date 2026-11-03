@@ -1,10 +1,15 @@
 class_name Player
 extends CharacterBody2D
 ## Toa. Two quick slots, no reload: shoot, throw when empty, grab the next gun.
+## Three hit points and one armour plate; F slots a new plate from the bag, G uses meds.
 
 const SPEED := 230.0
 const PICKUP_RANGE := 40.0
 const EXECUTE_RANGE := 38.0
+const MAX_HP := 3
+const HURT_GRACE := 0.6  # invulnerable after a hit, so one shotgun blast is one hit
+const USE_TIME := {"plate": 1.0, "meds": 1.5}
+const MEDS_HEAL := 2
 
 var game: Node
 var alive := true
@@ -17,6 +22,11 @@ var swing_t := 0.0
 var aim := 0.0
 var death_dir := Vector2.RIGHT
 var rig: CharacterRig
+var hp := MAX_HP
+var armor := false  # a plate is in the carrier and stops the next hit
+var hurt_t := 0.0
+var use_id := ""  # "plate" or "meds" while one is being used
+var use_t := 0.0
 
 
 func _ready() -> void:
@@ -34,9 +44,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not alive:
 		return
-	velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * SPEED * game.speed_mult()
+	var slow := 0.5 if use_id != "" else 1.0
+	velocity = Input.get_vector("move_left", "move_right", "move_up", "move_down") * SPEED * game.speed_mult() * slow
 	move_and_slide()
 	fire_t -= delta
+	hurt_t = maxf(0.0, hurt_t - delta)
+	rig.modulate = Color(1.6, 0.6, 0.6) if hurt_t > HURT_GRACE - 0.12 else Color.WHITE
 	swing_t = maxf(0.0, swing_t - delta)
 	_update_rig(delta)
 	# With the bag open the mouse belongs to the UI; Toa can only walk. No fighting in the hideout.
@@ -44,6 +57,13 @@ func _physics_process(delta: float) -> void:
 		return
 	aim = (get_global_mouse_position() - global_position).angle()
 	if not game.combat:
+		return
+	if Input.is_action_just_pressed("plate"):
+		_start_use("plate")
+	if Input.is_action_just_pressed("meds"):
+		_start_use("meds")
+	if use_id != "":
+		_tick_use(delta)
 		return
 
 	var w = slots[current]
@@ -149,10 +169,68 @@ func _pick_up(p: WeaponPickup) -> void:
 	p.queue_free()
 
 
+## Plates and meds take a moment to use; Toa walks at half speed and cannot fight meanwhile.
+func _start_use(id: String) -> void:
+	if use_id != "":
+		return
+	if id == "plate" and armor:
+		game.toast("방탄판이 이미 끼워져 있다")
+		return
+	if id == "meds" and hp >= MAX_HP:
+		game.toast("다친 곳이 없다")
+		return
+	if bag.items.all(func(i): return i["id"] != id):
+		game.toast("가방에 %s이(가) 없다" % ItemDB.get_data(id)["name"])
+		return
+	use_id = id
+	use_t = USE_TIME[id]
+
+
+func _tick_use(delta: float) -> void:
+	use_t -= delta
+	if use_t > 0.0:
+		return
+	for i in bag.items:
+		if i["id"] == use_id:
+			bag.remove(i)
+			break
+	if use_id == "plate":
+		armor = true
+	else:
+		hp = mini(MAX_HP, hp + MEDS_HEAL)
+	use_id = ""
+
+
+## Slots a plate from the bag at the start of a raid, if Toa packed one.
+func auto_plate() -> void:
+	for i in bag.items:
+		if i["id"] == "plate":
+			bag.remove(i)
+			armor = true
+			return
+
+
+## A bullet or blow. The plate breaks first, then hit points go; brief grace after each hit.
 func take_hit(dir: Vector2, _from_player: bool) -> void:
+	if not alive or hurt_t > 0.0:
+		return
+	hurt_t = HURT_GRACE
+	game.on_player_hurt(dir)
+	if armor:
+		armor = false
+		game.toast("방탄판이 깨졌다")
+		return
+	hp -= 1
+	if hp <= 0:
+		die(dir)
+
+
+func die(dir: Vector2) -> void:
 	if not alive:
 		return
 	alive = false
+	hp = 0
+	use_id = ""
 	death_dir = dir
 	collision_layer = 0
 	rig.lie_down(dir.angle(), Color(0.65, 0.5, 0.5))
