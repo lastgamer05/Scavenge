@@ -57,6 +57,7 @@ var dialog_npc: Node2D = null  # whoever the dialogue box belongs to (NPC or dec
 var dialog_lines: Array = []
 var dialog_i := 0
 var exit_cells: Array = []
+var secret := ""  # last digits typed; the vault code from the prologue replays it
 
 
 func _ready() -> void:
@@ -206,7 +207,20 @@ func _process(delta: float) -> void:
 	extract_t = extract_t + delta if on_exit else 0.0
 
 
+const REPLAY_CODE := "0719"
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var k: int = event.physical_keycode
+		if k >= KEY_0 and k <= KEY_9:
+			secret = (secret + str(k - KEY_0)).right(REPLAY_CODE.length())
+			if secret == REPLAY_CODE:
+				secret = ""
+				SaveData.prologue_replay = true
+				_start_raid("prologue")
+				get_viewport().set_input_as_handled()
+				return
 	if event.is_action_pressed("inventory"):
 		if inventory.visible:
 			_close_inventory()

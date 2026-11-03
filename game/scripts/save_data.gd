@@ -28,6 +28,7 @@ static var quest_given := false
 static var memories: Array = []  # memory ids unlocked (see Story.MEMORIES)
 static var flashbacks_seen: Array = []
 static var next_raid := "ruins"  # ruins or prologue
+static var prologue_replay := false  # watching the prologue again: nothing is saved (not persisted)
 
 
 static func ensure_loaded() -> void:

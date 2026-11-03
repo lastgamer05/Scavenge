@@ -212,7 +212,12 @@ func finish() -> void:
 	if stage == "done":
 		return
 	stage = "done"
-	SaveData.finish_prologue()
+	if SaveData.prologue_replay:
+		# Replay from the hideout's secret code: go home with the save untouched.
+		SaveData.prologue_replay = false
+		SaveData.next_raid = "ruins"
+	else:
+		SaveData.finish_prologue()
 	Engine.time_scale = 1.0
 	if game.is_inside_tree():
 		game.get_tree().change_scene_to_file.call_deferred("res://scenes/hideout.tscn")

@@ -72,6 +72,7 @@ func _process(_delta: float) -> bool:
 	_check(SaveData.raids == 2 and SaveData.extracts == 1, "raid counters")
 
 	_test_story(h, p)
+	_test_replay_code(h)
 	print("hideout finished: %d failure(s)" % failures)
 	quit(1 if failures > 0 else 0)
 	return false
@@ -102,3 +103,14 @@ func _test_story(h, p: Player) -> void:
 	_check(SaveData.memories.has("recorder_2") and not p.bag.items.any(func(i): return i["id"] == "recorder_2"), "recorders become memories at home")
 	h.show_memories()
 	_check(h.dialog_npc != null and h.dialog_lines.size() == SaveData.memories.size(), "decoder lists unlocked memories")
+
+
+func _test_replay_code(h) -> void:
+	var done_before := SaveData.prologue_done
+	for d in [5, 0, 7, 1, 9]:
+		var ev := InputEventKey.new()
+		ev.physical_keycode = KEY_0 + d
+		ev.pressed = true
+		h._unhandled_input(ev)
+	_check(SaveData.prologue_replay and SaveData.next_raid == "prologue", "typing 0719 in the hideout replays the prologue")
+	_check(SaveData.prologue_done == done_before, "replay does not reset story progress")

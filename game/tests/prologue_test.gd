@@ -54,6 +54,17 @@ func _process(_delta: float) -> bool:
 			_check(SaveData.prologue_done and SaveData.intro_pending, "prologue marked done, intro queued")
 			_check(SaveData.pouch.size() == 1 and SaveData.pouch[0]["id"] == "core", "Toa wakes with only the core in the pouch")
 			_check(SaveData.bag.is_empty(), "everything else is gone")
+			_test_replay()
 			print("prologue finished: %d failure(s)" % failures)
 			quit(1 if failures > 0 else 0)
 	return false
+
+
+func _test_replay() -> void:
+	var memories_before := SaveData.memories.size()
+	SaveData.bag = [ItemDB.make("goldbar")]
+	SaveData.prologue_replay = true
+	game.director.stage = "after"
+	game.director.finish()
+	_check(not SaveData.prologue_replay and SaveData.next_raid == "ruins", "replay ends back in raid mode")
+	_check(SaveData.bag.size() == 1 and SaveData.memories.size() == memories_before, "replay leaves the save alone")
