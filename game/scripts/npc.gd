@@ -19,8 +19,7 @@ func _ready() -> void:
 	var sheet_key := "npc_" + role
 	rig = CharacterRig.new(sheet_key if ResourceLoader.exists("res://assets/sprites/%s_idle.png" % sheet_key) else "npc:" + role)
 	mood_t = randf_range(1.0, 4.0)
-	# Drawn sheets keep the facing they were drawn with; procedural bodies face down.
-	rig.rotation = 0.0 if rig.animated else PI * 0.5
+	rig.rotation = PI * 0.5  # face down into the station until Toa comes close
 	add_child(rig)
 	var label := Label.new()
 	label.text = NAMES[role]
@@ -45,7 +44,7 @@ func interact() -> void:
 func _process(delta: float) -> void:
 	# Turn to face Toa when close.
 	var p: Node2D = hideout.player
-	if not rig.animated and p.global_position.distance_to(global_position) < 160.0:
+	if p.global_position.distance_to(global_position) < 160.0:
 		rig.rotation = rotate_toward(rig.rotation, (p.global_position - global_position).angle(), 0.08)
 	var talking: bool = hideout.dialog_npc == self or (counter != null and hideout.inventory.visible
 		and hideout.inventory.other == counter)
