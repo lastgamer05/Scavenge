@@ -212,9 +212,9 @@ const REPLAY_CODE := "0719"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		var k: int = event.physical_keycode
-		if k >= KEY_0 and k <= KEY_9:
-			secret = (secret + str(k - KEY_0)).right(REPLAY_CODE.length())
+		var digit := _digit_of(event)
+		if digit >= 0:
+			secret = (secret + str(digit)).right(REPLAY_CODE.length())
 			if secret == REPLAY_CODE:
 				secret = ""
 				SaveData.prologue_replay = true
@@ -242,6 +242,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	else:
 		return
 	get_viewport().set_input_as_handled()
+
+
+## Top-row digits, numpad digits, or whatever the keyboard layout reports as 0-9.
+static func _digit_of(ev: InputEventKey) -> int:
+	for k in [ev.physical_keycode, ev.keycode]:
+		if k >= KEY_0 and k <= KEY_9:
+			return k - KEY_0
+		if k >= KEY_KP_0 and k <= KEY_KP_9:
+			return k - KEY_KP_0
+	if ev.unicode >= 48 and ev.unicode <= 57:
+		return ev.unicode - 48
+	return -1
 
 
 func _close_inventory() -> void:
