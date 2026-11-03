@@ -95,6 +95,7 @@ func _process(_delta: float) -> bool:
 	_test_tutorial(h, p)
 	_test_story(h, p)
 	_test_sortie_menu(h)
+	_test_reset_code(h)
 	_test_replay_code(h)
 	print("hideout finished: %d failure(s)" % failures)
 	quit(1 if failures > 0 else 0)
@@ -156,3 +157,24 @@ func _test_sortie_menu(h) -> void:
 	Input.parse_input_event(ev)
 	h._picker_input(ev)
 	_check(not h.picking and not h.hud.dialog_panel.visible, "Esc closes the sortie menu")
+
+
+func _test_reset_code(h) -> void:
+	for d in [0, 0, 0, 0]:
+		var ev := InputEventKey.new()
+		ev.physical_keycode = KEY_0 + d
+		ev.pressed = true
+		h._unhandled_input(ev)
+	_check(h.confirming_reset and h.hud.dialog_panel.visible, "typing 0000 asks before wiping the save")
+	var money := SaveData.money
+	var esc := InputEventAction.new()
+	esc.action = "ui_cancel"
+	esc.pressed = true
+	h._unhandled_input(esc)
+	_check(not h.confirming_reset and SaveData.money == money, "Esc keeps the save")
+	SaveData.money = 999
+	SaveData.zone_extracts = {"outskirts": 2}
+	SaveData.wipe()
+	_check(SaveData.money == 300 and SaveData.zone_extracts.is_empty() and not SaveData.prologue_done,
+		"wiping starts over from the prologue")
+	SaveData.prologue_done = true
