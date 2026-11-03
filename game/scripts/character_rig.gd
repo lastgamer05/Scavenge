@@ -4,7 +4,8 @@ extends Node2D
 ## (res://assets/sprites/<key>_<frame>.png) pick a whole-body frame each tick:
 ##   unarmed: idle (arms at the sides) or a two-frame walk cycle
 ##   guns: rifle / pistol pose
-##   bat: wind-up while ready, then mid-swing and follow-through when swinging
+##   bat: held low (standing or walking), then mid-swing and follow-through when swinging;
+##        sheets without the low frames hold the wind-up instead
 ##   knife: knife pose, lunging forward on a stab
 ##   down: lying flat, for the stunned and the dead
 ## Characters without sheets fall back to a procedural body with a separate weapon sprite.
@@ -18,6 +19,7 @@ const BRIGHTNESS := {}  # per-sheet brightness lift; the regenerated sheets read
 var key := ""
 var sheet := false
 var animated := false  # has idle/walk/melee frames, not just the four static poses
+var bat_rest := false  # has bat_idle/bat_walk frames: the bat hangs low until a swing
 var body: Sprite2D
 var weapon: Sprite2D
 var weapon_id := "-"
@@ -30,6 +32,7 @@ func _init(body_key: String) -> void:
 	key = body_key
 	animated = ResourceLoader.exists(SHEET_DIR + key + "_idle.png")
 	sheet = animated or ResourceLoader.exists(SHEET_DIR + key + "_unarmed.png")
+	bat_rest = ResourceLoader.exists(SHEET_DIR + key + "_bat_idle.png")
 	body = Sprite2D.new()
 	body.scale = Vector2.ONE * SCALE
 	var b: float = BRIGHTNESS.get(key, 1.0)
@@ -82,7 +85,9 @@ func animate(delta: float, id: String, moving: bool, swing: float) -> void:
 	if GUN_POSE.has(id):
 		_set_frame(GUN_POSE[id])
 	elif id == "bat":
-		if swing < 0.0:
+		if swing < 0.0 and bat_rest:
+			_step(delta, moving, "bat_")
+		elif swing < 0.0:
 			_set_frame("bat_windup")
 		else:
 			_set_frame("bat_mid" if swing < 0.45 else "bat_follow")
@@ -91,14 +96,19 @@ func animate(delta: float, id: String, moving: bool, swing: float) -> void:
 		if swing >= 0.0:
 			body.position = Vector2(sin(swing * PI) * 5.0, 0)
 	else:
-		if moving:
-			walk_t += delta
-			_set_frame("walk1" if int(walk_t / STEP_TIME) % 2 == 0 else "walk2")
-		else:
-			walk_t = 0.0
-			_set_frame("idle")
+		_step(delta, moving, "")
 		if swing >= 0.0:
 			body.position = Vector2(sin(swing * PI) * 4.0, 0)  # a punch: lean in
+
+
+## Standing still or the two-frame walk; prefix picks the set ("" empty-handed, "bat_" bat lowered).
+func _step(delta: float, moving: bool, prefix: String) -> void:
+	if moving:
+		walk_t += delta
+		_set_frame(prefix + ("walk1" if int(walk_t / STEP_TIME) % 2 == 0 else "walk2"))
+	else:
+		walk_t = 0.0
+		_set_frame(prefix + "idle")
 
 
 ## facing: body rotation. swing: melee arc for characters without swing frames.

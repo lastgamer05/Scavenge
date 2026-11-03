@@ -216,7 +216,11 @@ func _test_animation() -> void:
 	rig.animate(0.1, "fists", true, -1.0)
 	_check(first.begins_with("walk") and rig.frame.begins_with("walk") and first != rig.frame, "walking alternates two frames")
 	rig.animate(0.0, "bat", false, -1.0)
-	_check(rig.frame == "bat_windup", "holding a bat: wind-up stance")
+	_check(rig.frame == "bat_idle", "holding a bat: bat hangs low")
+	rig.animate(0.1, "bat", true, -1.0)
+	first = rig.frame
+	rig.animate(0.1, "bat", true, -1.0)
+	_check(first.begins_with("bat_walk") and rig.frame.begins_with("bat_walk") and first != rig.frame, "walking with a bat alternates two frames")
 	rig.animate(0.0, "bat", false, 0.2)
 	_check(rig.frame == "bat_mid", "swing start: bat out front")
 	rig.animate(0.0, "bat", false, 0.8)
