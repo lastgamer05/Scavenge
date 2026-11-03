@@ -27,6 +27,7 @@ var stun_t := 0.0
 var search_t := 0.0
 var idle_t := 0.0
 var swing_t := -1.0
+var strike_t := 0.0  # after the hit lands: drives the swing / follow-through frames
 var home := Vector2.ZERO
 var death_dir := Vector2.RIGHT
 var hp := 1
@@ -80,7 +81,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		if stun_t <= 0.0:
 			_recover()
-		_update_visuals()
+		_update_visuals(delta)
 		return
 
 	var player: Player = game.player
@@ -103,7 +104,7 @@ func _physics_process(delta: float) -> void:
 			_chase(delta, sees, player)
 		State.SEARCH:
 			_search(delta)
-	_update_visuals()
+	_update_visuals(delta)
 
 
 func _can_see(p: Player) -> bool:
@@ -164,6 +165,7 @@ func _tick_swing(delta: float, player: Player, wd: Dictionary) -> void:
 	if swing_t >= 0.0:
 		return
 	swing_t = -1.0
+	strike_t = 0.2
 	fire_t = 0.5
 	var to := player.global_position - global_position
 	if to.length() < wd["range"] + 12.0 and absf(angle_difference(facing, to.angle())) < 1.3:
@@ -301,18 +303,19 @@ func _turn_to(angle: float, delta: float, rate: float) -> void:
 	facing = rotate_toward(facing, angle, rate * delta)
 
 
-func _update_visuals() -> void:
+func _update_visuals(delta: float = 0.0) -> void:
 	if state == State.STUNNED:
-		rig.show_weapon("")
-		rig.rotation = facing + PI * 0.5
-		rig.modulate = Color(0.75, 0.75, 0.9)
+		if not rig.lying:
+			rig.lie_down(facing + PI * 0.5, Color(0.75, 0.75, 0.9))
 		_set_mark("zz")
 		return
-	rig.modulate = Color.WHITE
-	rig.show_weapon(weapon_id)
+	if rig.lying:
+		rig.get_up()
+	strike_t = maxf(0.0, strike_t - delta)
 	var swing := 0.0
 	if swing_t >= 0.0:
 		swing = -1.0 + (0.22 - swing_t) / 0.22 * 2.0
+	rig.animate(delta, weapon_id, velocity.length() > 10.0, 1.0 - strike_t / 0.2 if strike_t > 0.0 else -1.0)
 	rig.pose(facing, swing)
 	match state:
 		State.CHASE:

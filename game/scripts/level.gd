@@ -294,3 +294,65 @@ static func _noise(x: int, y: int) -> float:
 	return float(((x * 73856093) ^ (y * 19349663)) & 0xff) / 255.0
 
 
+
+
+## Furniture inside buildings and junk outside, purely visual (no collision). Seeded so a map
+## always looks the same. Skips cells used by spawns, lights and extraction.
+func scatter_decor(per_building: int, outdoor: int, seed_value: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var taken := {}
+	for list in [enemy_spawns, pickup_spawns, container_spawns]:
+		for s in list:
+			taken[s[0]] = true
+	for c in lamp_cells + fire_cells + extract_cells + player_cells:
+		taken[c] = true
+	for cells in buildings:
+		var wall_side: Array = cells.filter(func(c): return not taken.has(c) and _wall_neighbours(c) == 1)
+		for i in mini(per_building, wall_side.size()):
+			var c: Vector2i = wall_side[rng.randi() % wall_side.size()]
+			if _near_taken(taken, c):
+				continue
+			_decor(["desk", "bed", "bookshelf"][rng.randi() % 3], c, rng)
+			taken[c] = true
+	var ground := []
+	for y in height:
+		for x in width:
+			var c := Vector2i(x, y)
+			if rows[y][x] in [",", "%", "="] and not taken.has(c) and _wall_neighbours(c) == 0:
+				ground.append(c)
+	for i in mini(outdoor, ground.size()):
+		var c: Vector2i = ground[rng.randi() % ground.size()]
+		if _near_taken(taken, c):
+			continue
+		var kind: String = "car" if rows[c.y][c.x] == "=" else ["rubble", "rubble", "sandbags"][rng.randi() % 3]
+		_decor(kind, c, rng)
+		taken[c] = true
+
+
+func _wall_neighbours(c: Vector2i) -> int:
+	var n := 0
+	for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		if is_wall(c + d):
+			n += 1
+	return n
+
+
+func _near_taken(taken: Dictionary, c: Vector2i) -> bool:
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if taken.has(c + Vector2i(dx, dy)):
+				return true
+	return false
+
+
+func _decor(kind: String, c: Vector2i, rng: RandomNumberGenerator) -> void:
+	var tex := PixelArt.file_texture("prop_" + kind)
+	if tex == null:
+		return
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.scale = Vector2.ONE * PixelArt.FILE_SCALE
+	s.position = cell_to_world(c)
+	s.rotation = [0.0, PI * 0.5, PI, PI * 1.5][rng.randi() % 4]
+	add_child(s)

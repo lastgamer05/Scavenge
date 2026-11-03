@@ -25,8 +25,9 @@ func _ready() -> void:
 		"stash": "locker", "donate": "crate", "cache": "pile"}.get(kind, "")
 	if prop != "":
 		sprite = Sprite2D.new()
-		sprite.texture = PixelArt.texture("prop:" + prop)
-		sprite.scale = Vector2.ONE * CharacterRig.SCALE
+		var art := PixelArt.file_texture("prop_" + prop)
+		sprite.texture = art if art != null else PixelArt.texture("prop:" + prop)
+		sprite.scale = Vector2.ONE * (PixelArt.FILE_SCALE if art != null else CharacterRig.SCALE)
 		add_child(sprite)
 
 

@@ -323,6 +323,20 @@ func _draw() -> void:
 		HORIZONTAL_ALIGNMENT_CENTER, size.x, 11, Color(1, 1, 1, 0.6))
 
 
+## Fits an icon into a rect at an integer scale, turning wide icons upright for tall slots.
+func _draw_icon(icon: Texture2D, r: Rect2, alpha: float) -> void:
+	var s := Vector2(icon.get_size())
+	var upright := r.size.y > r.size.x * 1.3 and s.x > s.y
+	var fit := r.size if not upright else Vector2(r.size.y, r.size.x)
+	var k := maxf(1.0, floorf(minf(fit.x / s.x, fit.y / s.y)))
+	if s.x * k > fit.x or s.y * k > fit.y:
+		k = minf(fit.x / s.x, fit.y / s.y)
+	var size := s * k
+	draw_set_transform(r.get_center(), PI * 0.5 if upright else 0.0)
+	draw_texture_rect(icon, Rect2(-size * 0.5, size), false, Color(1, 1, 1, alpha))
+	draw_set_transform(Vector2.ZERO, 0.0)
+
+
 func _draw_title(font: Font, origin: Vector2, width: float, title: String, sub: String) -> void:
 	draw_string(font, origin + Vector2(0, -12), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
 	draw_string(font, origin + Vector2(0, -12), sub, HORIZONTAL_ALIGNMENT_RIGHT, width, 11, Color(0.8, 0.8, 0.8))
@@ -342,10 +356,14 @@ func _draw_grid(font: Font, origin: Vector2, grid: InvGrid) -> void:
 func _draw_item(font: Font, r: Rect2, item: Dictionary, alpha: float) -> void:
 	var d := ItemDB.get_data(item["id"])
 	var col: Color = d["color"]
-	draw_rect(r, Color(col.darkened(0.35), alpha))
+	draw_rect(r, Color(col.darkened(0.55), alpha * 0.9))
 	draw_rect(r, Color(col.lightened(0.2), alpha), false, 1.5)
-	draw_multiline_string(font, r.position + Vector2(4, 14), d["name"], HORIZONTAL_ALIGNMENT_LEFT,
-		r.size.x - 6.0, 11, 3, Color(1, 1, 1, alpha))
+	var icon := PixelArt.file_texture("item_" + item["id"])
+	if icon == null:
+		draw_multiline_string(font, r.position + Vector2(4, 14), d["name"], HORIZONTAL_ALIGNMENT_LEFT,
+			r.size.x - 6.0, 11, 3, Color(1, 1, 1, alpha))
+	else:
+		_draw_icon(icon, r.grow(-4.0), alpha)
 	if WeaponDB.is_gun(item["id"]):
 		draw_string(font, r.position + Vector2(0, r.size.y - 5), str(item["ammo"]), HORIZONTAL_ALIGNMENT_RIGHT,
 			r.size.x - 4.0, 11, Color(1, 0.9, 0.5, alpha))

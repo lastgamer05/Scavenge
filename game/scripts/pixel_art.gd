@@ -20,7 +20,21 @@ const SLATE := [Color8(74, 80, 92), Color8(84, 90, 102), Color8(66, 71, 82)]
 const SLATE_LINE := Color8(44, 47, 56)
 const RUST := Color8(92, 82, 64)
 
+const ART_DIR := "res://assets/sprites/"
+const FILE_SCALE := 1.5  # generated prop art is drawn a little denser than the 16px tiles
+
 static var _cache := {}
+
+
+## A generated sprite from assets/sprites/<name>.png, or null when there is none.
+## Re-wrapped as an ImageTexture: an imported texture drawn only through Control._draw
+## rendered as a white box in the compatibility renderer until a Sprite2D had used it.
+static func file_texture(name: String) -> Texture2D:
+	var key := "file_" + name
+	if not _cache.has(key):
+		var path := ART_DIR + name + ".png"
+		_cache[key] = ImageTexture.create_from_image(load(path).get_image()) if ResourceLoader.exists(path) else null
+	return _cache[key]
 
 
 static func _img(w: int, h: int) -> Image:

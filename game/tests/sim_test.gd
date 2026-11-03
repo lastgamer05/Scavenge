@@ -77,6 +77,7 @@ func _process(_delta: float) -> bool:
 			_check(game.level.roofs[0].target_alpha == 0.0, "roof over Toa's building fades")
 			_check(game.level.roofs[1].target_alpha == 1.0, "other roofs stay")
 			_test_story()
+			_test_animation()
 			for e in _enemies():
 				if not e.is_dead() and WeaponDB.is_gun(e.weapon_id):
 					shooter = e
@@ -170,3 +171,26 @@ func _test_story() -> void:
 	_check(boss.is_dead(), "third hit drops Leon")
 	var corpse = game.nearest_container(boss.global_position, 40.0)
 	_check(corpse != null and corpse.grid.items.any(func(i): return i["id"] == "dogtag"), "Leon's corpse holds the dog tag")
+
+
+func _test_animation() -> void:
+	var rig := CharacterRig.new("toa")
+	root.add_child(rig)
+	_check(rig.animated, "Toa has animation frames")
+	rig.animate(0.0, "fists", false, -1.0)
+	_check(rig.frame == "idle", "unarmed and still: standing at attention")
+	rig.animate(0.1, "fists", true, -1.0)
+	var first := rig.frame
+	rig.animate(0.1, "fists", true, -1.0)
+	_check(first.begins_with("walk") and rig.frame.begins_with("walk") and first != rig.frame, "walking alternates two frames")
+	rig.animate(0.0, "bat", false, -1.0)
+	_check(rig.frame == "bat_windup", "holding a bat: wind-up stance")
+	rig.animate(0.0, "bat", false, 0.2)
+	_check(rig.frame == "bat_mid", "swing start: bat out front")
+	rig.animate(0.0, "bat", false, 0.8)
+	_check(rig.frame == "bat_follow", "swing end: follow-through")
+	rig.animate(0.0, "rifle", true, -1.0)
+	_check(rig.frame == "rifle", "guns keep their aiming pose")
+	rig.lie_down(0.0, Color.WHITE)
+	_check(rig.frame == "down", "knocked down: lying frame")
+	rig.queue_free()

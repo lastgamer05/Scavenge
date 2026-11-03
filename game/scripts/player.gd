@@ -38,7 +38,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	fire_t -= delta
 	swing_t = maxf(0.0, swing_t - delta)
-	_update_rig()
+	_update_rig(delta)
 	# With the bag open the mouse belongs to the UI; Toa can only walk. No fighting in the hideout.
 	if game.inventory.visible:
 		return
@@ -160,10 +160,12 @@ func take_hit(dir: Vector2, _from_player: bool) -> void:
 	game.on_player_died(dir)
 
 
-func _update_rig() -> void:
+func _update_rig(delta: float) -> void:
 	var id := current_id()
 	var swing := 0.0
+	var progress := -1.0
 	if WeaponDB.get_data(id)["melee"] and swing_t > 0.0:
-		swing = -1.2 + (0.15 - swing_t) / 0.15 * 2.4
-	rig.show_weapon(id)
+		progress = clampf(1.0 - swing_t / 0.15, 0.0, 1.0)
+		swing = -1.2 + progress * 2.4
+	rig.animate(delta, id, velocity.length() > 10.0, progress)
 	rig.pose(aim, swing)

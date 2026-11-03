@@ -58,6 +58,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	var look := (target.global_position - global_position).angle() if target != null else velocity.angle() if velocity.length() > 1.0 else facing
 	facing = rotate_toward(facing, look, delta * 10.0)
+	rig.animate(delta, "rifle", velocity.length() > 10.0, -1.0)
 	rig.pose(facing)
 	if target != null and fire_t <= 0.0:
 		fire_t = randf_range(0.45, 0.8)

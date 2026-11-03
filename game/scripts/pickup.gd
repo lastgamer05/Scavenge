@@ -14,8 +14,9 @@ func _ready() -> void:
 	add_to_group("pickups")
 	rotation = randf() * TAU
 	var spr := Sprite2D.new()
-	spr.texture = PixelArt.texture("weapon:" + weapon_id)
-	spr.scale = Vector2.ONE * CharacterRig.SCALE
+	var icon := PixelArt.file_texture("item_" + weapon_id)
+	spr.texture = icon if icon != null else PixelArt.texture("weapon:" + weapon_id)
+	spr.scale = Vector2.ONE * (1.0 if icon != null else CharacterRig.SCALE)
 	# Empty guns lie dimmer so loaded ones stand out.
 	spr.modulate = Color(1.25, 1.2, 1.1) if not WeaponDB.is_gun(weapon_id) or ammo > 0 else Color(0.7, 0.6, 0.6)
 	add_child(spr)

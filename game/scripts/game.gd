@@ -65,6 +65,7 @@ func _ready() -> void:
 	roof_layer = Node2D.new()
 	add_child(roof_layer)
 	level.build(roof_layer)
+	level.scatter_decor(3, 40, hash(mode))
 
 	for c in level.lamp_cells:
 		_spawn_light("lamp", c)

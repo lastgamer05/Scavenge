@@ -1,18 +1,23 @@
 extends SceneTree
-## Turns a generated 2x2 character sheet (magenta background) into clean pixel sprites.
+## Turns a generated sheet (magenta background) into clean pixel sprites.
 ##
 ## Usage:
-##   godot --headless --path game --script res://tools/import_sprites.gd -- <sheet.png> <name> [noemblem]
+##   godot --headless --path game --script res://tools/import_sprites.gd -- <sheet.png> <name> [options]
 ##
-## "noemblem" paints over near-white insignia (generated armbands can come out with
-## symbols we do not want) using the surrounding colour.
+## Options:
+##   poses=a,b,c,d   frame names in reading order (default unarmed,rifle,pistol,melee)
+##   grid=CxR        sheet layout (default 2x2)
+##   mode=icon       fit each cell into size=N pixels instead of character scaling
+##   size=N          icon mode: longest side in art pixels (default 24)
+##   greencross=name turn strong reds in that frame green (no red-cross emblem on medicine)
+##   noemblem        paint over near-white insignia with the surrounding colour
+##                   (generated armbands can come out with symbols we do not want)
 ##
-## Writes res://assets/sprites/<name>_{unarmed,rifle,pistol,melee}.png. Each sprite is
-## downsampled by majority vote onto a real pixel grid and padded so the body pivot
-## (the centre of the shoulders) sits at the image centre, ready for a centred Sprite2D.
+## Character mode scales every sheet by the torso (limbs and weapons eroded away), so a bat
+## sticking out does not shrink the body, and centres the torso in each image so a centred
+## Sprite2D rotates around the shoulders. Writes res://assets/sprites/<name>_<pose>.png.
 
-const POSES := ["unarmed", "rifle", "pistol", "melee"]  # top-left, top-right, bottom-left, bottom-right
-const TARGET_H := 18.0  # art pixels from shoulder to shoulder in the unarmed pose
+const TORSO_H := 13.0  # art pixels across the eroded torso
 const OUT_DIR := "res://assets/sprites/"
 const MIN_PIECE := 24
 
@@ -20,32 +25,88 @@ const MIN_PIECE := 24
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() < 2:
-		printerr("usage: -- <sheet.png> <name>")
+		printerr("usage: -- <sheet.png> <name> [options]")
 		quit(1)
 		return
+	var opts := {"poses": "unarmed,rifle,pistol,melee", "grid": "2x2", "mode": "sprite", "size": "24"}
+	for a in args.slice(2):
+		var kv: PackedStringArray = a.split("=")
+		opts[kv[0]] = kv[1] if kv.size() > 1 else "1"
 	var img := Image.load_from_file(args[0])
 	img.convert(Image.FORMAT_RGBA8)
-	var w := img.get_width() / 2
-	var h := img.get_height() / 2
-	var quads := [Rect2i(0, 0, w, h), Rect2i(w, 0, w, h), Rect2i(0, h, w, h), Rect2i(w, h, w, h)]
-	var boxes := quads.map(func(q): return _bbox(img, q))
-	var base: Rect2i = boxes[0]
-	var factor: float = base.size.y / TARGET_H
-	var pivot_off: float = _centroid(img, base).x - base.position.x
+	var grid: PackedStringArray = opts["grid"].split("x")
+	var cols := int(grid[0])
+	var rows := int(grid[1])
+	var cw := img.get_width() / cols
+	var ch := img.get_height() / rows
+	var names: PackedStringArray = opts["poses"].split(",")
+	var cells := []
+	for r in rows:
+		for c in cols:
+			cells.append(Rect2i(c * cw, r * ch, cw, ch))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
-	for i in 4:
+	var boxes := cells.map(func(q): return _bbox(img, q))
+	var factor := 1.0
+	if opts["mode"] == "sprite":
+		var base: Rect2i = boxes[0]
+		var f0: float = base.size.y / 18.0
+		var probe := _downsample(img, base, Vector2(base.get_center()), f0)
+		factor = f0 * _torso(probe)[0] / TORSO_H
+	for i in mini(names.size(), cells.size()):
 		var box: Rect2i = boxes[i]
-		# The back pack sits on the body axis, so its column centroid gives the pivot height.
-		var back := Rect2i(box.position, Vector2i(int(base.size.x * 0.3), box.size.y))
-		var pivot := Vector2(box.position.x + pivot_off, _centroid(img, back).y)
-		var out := _downsample(img, box, pivot, factor)
-		_attach_pieces(out)
-		if args.size() > 2 and args[2] == "noemblem":
+		if box.size.x <= 1:
+			continue
+		var out: Image
+		if opts["mode"] == "icon":
+			var f: float = maxf(box.size.x, box.size.y) / float(opts["size"])
+			out = _downsample(img, box, Vector2(box.get_center()), f)
+		else:
+			out = _downsample(img, box, Vector2(box.get_center()), factor)
+			_attach_pieces(out)
+			out = _recenter(out, _torso(out)[1])
+		if opts.has("noemblem"):
 			_scrub_light(out)
-		var path: String = OUT_DIR + "%s_%s.png" % [args[1], POSES[i]]
+		if opts.has("greencross") and names[i] == opts["greencross"]:
+			_recolor_red(out)
+		var path: String = OUT_DIR + "%s_%s.png" % [args[1], names[i]]
 		out.save_png(ProjectSettings.globalize_path(path))
 		print("%s %dx%d" % [path, out.get_width(), out.get_height()])
 	quit()
+
+
+## [height, centroid] of the pixels that survive a 5x5 erosion: the torso without thin limbs or weapons.
+func _torso(img: Image) -> Array:
+	var sum := Vector2.ZERO
+	var n := 0
+	var lo := 1e9
+	var hi := -1e9
+	for y in range(2, img.get_height() - 2):
+		for x in range(2, img.get_width() - 2):
+			var solid := true
+			for dy in range(-2, 3):
+				for dx in range(-2, 3):
+					if img.get_pixel(x + dx, y + dy).a == 0.0:
+						solid = false
+						break
+				if not solid:
+					break
+			if solid:
+				sum += Vector2(x, y)
+				n += 1
+				lo = minf(lo, y)
+				hi = maxf(hi, y)
+	if n == 0:
+		return [TORSO_H, Vector2(img.get_size()) * 0.5]
+	return [hi - lo + 5.0, sum / n]
+
+
+## Pads/crops so `center` lands in the middle of the image.
+func _recenter(img: Image, center: Vector2) -> Image:
+	var c := Vector2i(center.round())
+	var half := Vector2i(maxi(c.x, img.get_width() - c.x), maxi(c.y, img.get_height() - c.y)) + Vector2i.ONE
+	var out := Image.create_empty(half.x * 2, half.y * 2, false, Image.FORMAT_RGBA8)
+	out.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), half - c)
+	return out
 
 
 static func _is_key(c: Color) -> bool:
@@ -208,3 +269,11 @@ func _scrub_light(img: Image) -> void:
 					n += 1
 			if n > 0:
 				img.set_pixel(i, j, Color(sum.r / n, sum.g / n, sum.b / n, 1.0))
+
+
+func _recolor_red(img: Image) -> void:
+	for j in img.get_height():
+		for i in img.get_width():
+			var c := img.get_pixel(i, j)
+			if c.a > 0.0 and c.r > 0.55 and c.g < 0.35 and c.b < 0.35:
+				img.set_pixel(i, j, Color(0.25, c.r * 0.75, 0.3, 1.0))

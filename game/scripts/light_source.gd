@@ -13,8 +13,10 @@ var flame: Node2D
 func _ready() -> void:
 	t = randf() * 10.0
 	var spr := Sprite2D.new()
-	spr.texture = PixelArt.texture("prop:" + ("lamp" if kind == "lamp" else "barrel"))
-	spr.scale = Vector2.ONE * CharacterRig.SCALE
+	var prop := "lamp" if kind == "lamp" else "barrel"
+	var art := PixelArt.file_texture("prop_" + prop)
+	spr.texture = art if art != null else PixelArt.texture("prop:" + prop)
+	spr.scale = Vector2.ONE * (PixelArt.FILE_SCALE if art != null else CharacterRig.SCALE)
 	add_child(spr)
 	if kind == "fire":
 		flame = Node2D.new()

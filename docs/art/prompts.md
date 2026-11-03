@@ -56,3 +56,10 @@ The Centra sheet came back with white insignia on the armbands that resembled a 
 with the `noemblem` option (near-white pixels painted over with the surrounding colour) and the source sheet is not
 kept in the repo. Future Centra prompts should ask for plain red armbands with no symbols.
 The importer also slides guns drawn in front of the hands back onto the body and drops stray bits from neighbouring poses.
+
+# Animation and asset round
+
+Per character (reference: its own symmetric sheet): a walk sheet (attention, step, step, lying down) and a melee
+sheet (bat wind-up, mid swing, follow-through, knife thrust). Plus a 5x4 item icon sheet and a 4x3 prop sheet.
+Imported with `import_sprites.gd` using `poses=...`, `grid=CxR`, `mode=icon`; the medicine icon's red cross is
+turned green (`greencross=meds`) since the red cross emblem is protected. Centra sources are not kept in the repo.

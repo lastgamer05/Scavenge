@@ -77,6 +77,7 @@ func _ready() -> void:
 	var roof_layer := Node2D.new()
 	add_child(roof_layer)
 	level.build(roof_layer)
+	level.scatter_decor(8, 0, 7)
 	roof_layer.visible = false  # the station is all indoors
 	exit_cells = level.extract_groups.get("gate", [])
 
