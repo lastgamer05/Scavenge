@@ -1,13 +1,11 @@
 extends Node2D
 ## One raid: load the map, spawn everything, track kills, loot, death and extraction.
-## SaveData.next_raid picks the ruins or the scripted prologue at ground zero.
+## SaveData.next_raid picks a zone (see Zones) or the scripted prologue at ground zero.
 
-const MAPS := {"ruins": "res://data/maps/ruins.txt", "prologue": "res://data/maps/facility.txt"}
+const PROLOGUE_MAP := "res://data/maps/facility.txt"
 const EXTRACT_TIME := 3.0
 const ZOOM_OUTDOOR := 1.5  # x2 art scale = 3 screen pixels per art pixel
 const ZOOM_INDOOR := 2.0
-const RAID_TIME := 900.0
-const REINFORCE_AFTER := 600.0
 const REINFORCE_EVERY := 45.0
 
 var level: Level
@@ -22,7 +20,10 @@ var roof_layer: Node2D
 var vision: Vision
 var player_light: PointLight2D
 var active_zone: ExtractZone = null
-var time_left := RAID_TIME
+var raid_time := 900.0
+var reinforce_after := 600.0
+var zone: Dictionary = {}
+var time_left := 900.0
 var reinforce_t := REINFORCE_EVERY
 var death_reason := ""
 var combat := true
@@ -36,6 +37,7 @@ var extracted_value := 0
 var extracted_count := 0
 var mode := "ruins"
 var director: PrologueDirector = null
+var tutorial: CombatTutorial = null
 var cam_focus = null  # Vector2 while a cutscene owns the camera, else null
 var cam_zoom := 2.0
 var hide_roofs := false  # cutscenes lift every roof so nothing important is hidden
@@ -47,8 +49,13 @@ func _ready() -> void:
 	randomize()
 	add_to_group("game")
 	SaveData.ensure_loaded()
-	mode = SaveData.next_raid if MAPS.has(SaveData.next_raid) else "ruins"
-	var map_text := FileAccess.get_file_as_string(MAPS[mode])
+	mode = "prologue" if SaveData.next_raid == "prologue" else Zones.get_zone(SaveData.next_raid)["id"]
+	zone = {} if mode == "prologue" else Zones.get_zone(mode)
+	if not zone.is_empty():
+		raid_time = zone["time"]
+		reinforce_after = zone["reinforce_after"]
+	time_left = raid_time
+	var map_text := FileAccess.get_file_as_string(PROLOGUE_MAP if mode == "prologue" else zone["map"])
 	var moon := CanvasModulate.new()
 	moon.color = Lights.MOONLIGHT
 	add_child(moon)
@@ -96,6 +103,9 @@ func _ready() -> void:
 		e.level = level
 		e.weapon_id = s[1]
 		e.position = level.cell_to_world(s[0])
+		if not zone.is_empty():
+			e.skill = zone["skill"]
+			e.centra = randf() < zone["centra"]
 		entities.add_child(e)
 		total_enemies += 1
 
@@ -128,8 +138,12 @@ func _ready() -> void:
 		director = PrologueDirector.new()
 		add_child(director)
 		director.setup(self, map_text.replace("\r", "").split("\n"))
-	else:
+	elif mode == "ruins":
 		Story.raid_setup(self)
+	if mode == "outskirts" and not SaveData.combat_tutorial:
+		tutorial = CombatTutorial.new()
+		add_child(tutorial)
+		tutorial.setup(self)
 
 
 func _process(delta: float) -> void:
@@ -259,13 +273,16 @@ func _tick_extraction(delta: float, cell: Vector2i) -> void:
 
 
 ## Late in the raid Centra sends patrols in from the map edges; at zero Toa is lost.
+## The clock waits while the combat lesson is running.
 func _tick_raid_clock(delta: float) -> void:
+	if tutorial != null and tutorial.running():
+		return
 	time_left -= delta
 	if time_left <= 0.0:
-		death_reason = "시간 초과 — 폐허에서 실종됐다"
+		death_reason = "시간 초과 — %s에서 실종됐다" % zone["name"]
 		player.die(Vector2.DOWN)
 		return
-	if RAID_TIME - time_left < REINFORCE_AFTER:
+	if raid_time - time_left < reinforce_after:
 		return
 	reinforce_t -= delta
 	if reinforce_t > 0.0:
@@ -280,10 +297,11 @@ func _tick_raid_clock(delta: float) -> void:
 		e.position = level.random_floor_near(pos, 2)
 		e.alerted = true
 		e.centra = true
+		e.skill = zone["skill"]
 		entities.add_child(e)
 		total_enemies += 1
 		e.hear(player.global_position)
-	if REINFORCE_AFTER + REINFORCE_EVERY > RAID_TIME - time_left:
+	if reinforce_after + REINFORCE_EVERY > raid_time - time_left:
 		toast("센트라 순찰대가 구역에 진입했다")
 
 

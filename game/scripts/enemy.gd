@@ -38,7 +38,9 @@ var home := Vector2.ZERO
 var death_dir := Vector2.RIGHT
 var hp := 1
 var boss_name := ""
-var centra := false  # Centra patrol (late-raid reinforcement) instead of a scavenger
+var centra := false  # Centra soldier instead of a scavenger
+var skill := 1.0  # zone difficulty: divides reaction and aim-settle times
+var passive := false  # combat-lesson target: stands still and never fights back
 var rig: CharacterRig
 var mark_node: Node2D
 var mark := ""
@@ -92,13 +94,17 @@ func _physics_process(delta: float) -> void:
 		_update_visuals(delta)
 		return
 
+	if passive:
+		velocity = Vector2.ZERO
+		_update_visuals(delta)
+		return
 	var player: Player = game.player
 	var sees := player.alive and _can_see(player)
 	if sees:
 		last_known = player.global_position
 		if state != State.CHASE:
 			state = State.CHASE
-			react_t = REACTION
+			react_t = REACTION / skill
 			aim_t = 0.0
 			if not alerted:
 				alerted = true
@@ -186,7 +192,7 @@ func _tick_swing(delta: float, player: Player, wd: Dictionary) -> void:
 
 func _shoot(wd: Dictionary) -> void:
 	fire_t = maxf(wd["cooldown"] * 3.0, 0.22)
-	var loose := 4.0 + AIM_LOOSE * (1.0 - clampf(aim_t / AIM_SETTLE, 0.0, 1.0))
+	var loose := 4.0 + AIM_LOOSE * (1.0 - clampf(aim_t * skill / AIM_SETTLE, 0.0, 1.0))
 	var muzzle: Vector2 = global_position + Vector2.from_angle(facing) * (10.0 + wd["length"])
 	for i in wd["pellets"]:
 		var a := facing + deg_to_rad(randf_range(-wd["spread"] - loose, wd["spread"] + loose))
@@ -214,7 +220,7 @@ func _search(delta: float) -> void:
 
 ## Called by game when a noise reaches this enemy.
 func hear(pos: Vector2) -> void:
-	if state == State.DEAD or state == State.STUNNED or state == State.CHASE:
+	if passive or state == State.DEAD or state == State.STUNNED or state == State.CHASE:
 		return
 	state = State.INVESTIGATE
 	last_known = pos

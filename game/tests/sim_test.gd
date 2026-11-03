@@ -17,6 +17,7 @@ func _initialize() -> void:
 	SaveData.prologue_done = true
 	SaveData.quest = 3  # "옛 팀장": spawns Leon and his guards
 	SaveData.quest_given = true
+	SaveData.next_raid = "ruins"
 	game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 

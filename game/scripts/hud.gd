@@ -109,6 +109,7 @@ var prompt_label: Label
 var center_label: Label
 var toast_label: Label
 var toast_t := 0.0
+var tutorial_label: Label  # combat lesson instruction, set by CombatTutorial
 var pings: SoundPings
 
 
@@ -124,6 +125,8 @@ func _ready() -> void:
 	prompt_label = _centered(22, 0.68)
 	toast_label = _centered(22, 0.76)
 	center_label = _centered(44, 0.32)
+	tutorial_label = _centered(22, 0.1)
+	tutorial_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 	var hint := _label(22, Vector2(20, 0))
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	hint.offset_left = 20
@@ -217,7 +220,7 @@ func _process(delta: float) -> void:
 	var secs := int(game.run_time)
 	var left := maxi(0, ceili(game.time_left))
 	info_label.text = "처치 %d/%d    남은 시간 %02d:%02d" % [game.kills, game.total_enemies, left / 60, left % 60]
-	info_label.modulate = Color(1, 0.45, 0.4) if game.time_left < game.RAID_TIME - game.REINFORCE_AFTER else Color.WHITE
+	info_label.modulate = Color(1, 0.45, 0.4) if game.time_left < game.raid_time - game.reinforce_after else Color.WHITE
 	if game.mode == "prologue":
 		info_label.text = "작전 '회수' — 붕괴 진원지"
 		info_label.modulate = Color.WHITE
@@ -261,4 +264,4 @@ func _process(delta: float) -> void:
 	toast_label.modulate.a = clampf(toast_t, 0.0, 1.0)
 	subtitle_t -= delta
 	subtitle_label.modulate.a = clampf(subtitle_t, 0.0, 1.0)
-	objective_label.text = Story.objective_text() if game.mode == "ruins" else ""
+	objective_label.text = Story.objective_text() if game.mode != "prologue" else ""

@@ -4,7 +4,7 @@ extends Node2D
 ## finds buildings for roofs and answers path queries.
 
 const CELL := 32
-const ENEMY_CHARS := {"E": "pistol", "F": "smg", "G": "shotgun", "H": "bat"}
+const ENEMY_CHARS := {"E": "pistol", "F": "smg", "G": "shotgun", "H": "bat", "R": "rifle"}
 const PICKUP_CHARS := {"p": "pistol", "q": "silenced", "s": "smg", "g": "shotgun",
 	"r": "rifle", "b": "bat", "k": "knife"}
 const CONTAINER_CHARS := {"c": "crate", "l": "locker", "v": "safe"}

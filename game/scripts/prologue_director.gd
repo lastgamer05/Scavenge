@@ -310,7 +310,7 @@ func finish() -> void:
 	if SaveData.prologue_replay:
 		# Replay from the hideout's secret code: go home with the save untouched.
 		SaveData.prologue_replay = false
-		SaveData.next_raid = "ruins"
+		SaveData.next_raid = "outskirts"
 	else:
 		SaveData.finish_prologue()
 	if game.is_inside_tree():

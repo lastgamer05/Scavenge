@@ -94,6 +94,7 @@ func _process(_delta: float) -> bool:
 
 	_test_tutorial(h, p)
 	_test_story(h, p)
+	_test_sortie_menu(h)
 	_test_replay_code(h)
 	print("hideout finished: %d failure(s)" % failures)
 	quit(1 if failures > 0 else 0)
@@ -136,3 +137,22 @@ func _test_replay_code(h) -> void:
 		h._unhandled_input(ev)
 	_check(SaveData.prologue_replay and SaveData.next_raid == "prologue", "typing 0719 in the hideout replays the prologue")
 	_check(SaveData.prologue_done == done_before, "replay does not reset story progress")
+
+
+func _test_sortie_menu(h) -> void:
+	SaveData.zone_extracts = {"outskirts": 1}
+	h.interact()
+	_check(h.picking and h.hud.dialog_text.text.contains("폐허 구역") and h.hud.dialog_text.text.contains("[잠김] 센트라 검문소"),
+		"two zones open: the tunnel asks where to go and shows what is still locked")
+	var ev := InputEventKey.new()
+	ev.physical_keycode = KEY_3
+	ev.pressed = true
+	h._unhandled_input(ev)
+	_check(h.picking and SaveData.next_raid != "checkpoint", "a locked zone cannot be picked")
+	ev = InputEventKey.new()
+	ev.keycode = KEY_ESCAPE
+	ev.physical_keycode = KEY_ESCAPE
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	h._picker_input(ev)
+	_check(not h.picking and not h.hud.dialog_panel.visible, "Esc closes the sortie menu")

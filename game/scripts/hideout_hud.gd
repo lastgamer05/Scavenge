@@ -112,7 +112,7 @@ func _process(delta: float) -> void:
 			"search":
 				prompt_label.text = "E  열기: %s" % t["node"].title
 			"exit":
-				prompt_label.text = "E  출격 — 폐허 구역 (가방 $%d)" % hideout.carried_value()
+				prompt_label.text = "E  출격 (가방 $%d)" % hideout.carried_value()
 
 	var lines := []
 	for t in toasts:

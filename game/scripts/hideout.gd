@@ -20,7 +20,8 @@ const LINES := {
 	"informant": [
 		"정문 검문소는 항상 열려 있지만 멀다. 하수도는 짐이 가벼워야 빠져나가.",
 		"차는 연료통만 있으면 굴러가. 신호탄은 헬기를 부르지만 온 동네가 다 듣는다.",
-		"10분이 넘으면 센트라 순찰대가 들어온다. 15분이면 끝이야. 욕심 부리지 마.",
+		"외곽 마을엔 순찰대가 안 와. 폐허는 10분, 검문소는 5분이 지나면 센트라가 들어온다. 욕심 부리지 마.",
+		"길은 한 단계씩이야. 외곽 마을에서 살아 나오면 폐허로, 폐허에서 살아 나오면 검문소로 가는 길을 알려 주지.",
 	],
 }
 
@@ -31,24 +32,6 @@ const TUTORIAL_TIPS := [
 	"맞으면 체력이 깎인다. 방탄판(F)과 의약품(G)을 챙겨 가.",
 	"죽으면 가방은 다 잃는다. 탈출 지점까지 살아서 와야 네 거다.",
 ]
-
-## Bobbing arrow over whatever the tutorial wants Toa to walk to.
-class TutorialArrow extends Node2D:
-	var t := 0.0
-
-	func _ready() -> void:
-		z_index = 20
-
-	func _process(delta: float) -> void:
-		t += delta
-		queue_redraw()
-
-	func _draw() -> void:
-		var y := -44.0 + sin(t * 5.0) * 4.0
-		var col := Color(1.0, 0.9, 0.3)
-		draw_colored_polygon(PackedVector2Array([Vector2(0, y + 10), Vector2(-8, y), Vector2(8, y)]), col)
-		draw_rect(Rect2(-3, y - 10, 6, 10), col)
-
 
 ## The Bapas terminal the core is plugged into. Shows every decoded file and recording.
 class Decoder extends Node2D:
@@ -84,7 +67,8 @@ var dialog_lines: Array = []
 var dialog_i := 0
 var exit_cells: Array = []
 var secret := ""  # last digits typed; the vault code from the prologue replays it
-var tutorial_arrow: TutorialArrow
+var picking := false  # the sortie menu is open at the tunnel
+var tutorial_arrow: PointerArrow
 
 
 func _ready() -> void:
@@ -144,7 +128,7 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 
-	tutorial_arrow = TutorialArrow.new()
+	tutorial_arrow = PointerArrow.new()
 	add_child(tutorial_arrow)
 	hud = HideoutHud.new()
 	hud.hideout = self
@@ -223,6 +207,9 @@ func _report_last_raid() -> void:
 			hud.toast("바파스 거점. 리더에게 말을 걸어 보자.")
 	elif r["extracted"]:
 		hud.toast("귀환 성공 — $%d 어치를 가져왔다" % r["value"])
+		var i := Zones.index_of(r.get("zone", ""))
+		if i >= 0 and i + 1 < Zones.LIST.size() and int(SaveData.zone_extracts.get(r["zone"], 0)) == 1:
+			hud.toast("새 구역이 열렸다 — %s" % Zones.LIST[i + 1]["name"])
 	else:
 		hud.toast("작전 실패 — $%d 어치를 잃었다" % r["value"])
 	SaveData.last_result = {}
@@ -236,6 +223,8 @@ func _process(delta: float) -> void:
 		_end_dialog()
 	var on_exit := exit_cells.has(level.world_to_cell(player.global_position))
 	extract_t = extract_t + delta if on_exit else 0.0
+	if picking and not on_exit:
+		_close_picker()
 	_tick_tutorial()
 
 
@@ -271,6 +260,9 @@ const REPLAY_CODE := "0719"
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if picking:
+		_picker_input(event)
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var digit := _digit_of(event)
 		if digit >= 0:
@@ -343,13 +335,45 @@ func interact_target(pos: Vector2) -> Dictionary:
 	return best
 
 
-## Sortie: called by Player.interact on the gate cells.
+## Sortie: called by Player.interact on the gate cells. With more than one zone open,
+## a menu lists them (number keys pick one) and names what opens the next.
 func interact() -> void:
-	_start_raid("ruins")
+	var open := Zones.unlocked()
+	if open.size() == 1:
+		_start_raid(open[0]["id"])
+		return
+	var lines := []
+	for i in Zones.LIST.size():
+		var z: Dictionary = Zones.LIST[i]
+		if Zones.is_unlocked(z["id"]):
+			lines.append("[%d] %s (%s) — %s" % [i + 1, z["name"], z["level"], z["desc"]])
+		else:
+			lines.append("[잠김] %s — %s에서 한 번 살아 나오면 열린다" % [z["name"], Zones.LIST[i - 1]["name"]])
+			break
+	picking = true
+	hud.show_dialog("출격 — 어디로 갈까?  (숫자 키, Esc 취소)", "\n".join(lines))
+
+
+func _picker_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var d := _digit_of(event)
+		if d >= 1 and d <= Zones.LIST.size() and Zones.is_unlocked(Zones.LIST[d - 1]["id"]):
+			_close_picker()
+			_start_raid(Zones.LIST[d - 1]["id"])
+			get_viewport().set_input_as_handled()
+			return
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
+		_close_picker()
+		get_viewport().set_input_as_handled()
+
+
+func _close_picker() -> void:
+	picking = false
+	hud.hide_dialog()
 
 
 func _start_raid(which: String) -> void:
-	if which == "ruins" and SaveData.tutorial == TUTORIAL.size() - 1:
+	if which != "prologue" and SaveData.tutorial == TUTORIAL.size() - 1:
 		SaveData.tutorial += 1
 	_persist()
 	SaveData.next_raid = which

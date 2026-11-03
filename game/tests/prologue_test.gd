@@ -71,5 +71,5 @@ func _test_replay() -> void:
 	SaveData.prologue_replay = true
 	game.director.stage = "after"
 	game.director.finish()
-	_check(not SaveData.prologue_replay and SaveData.next_raid == "ruins", "replay ends back in raid mode")
+	_check(not SaveData.prologue_replay and SaveData.next_raid == "outskirts", "replay ends back in raid mode")
 	_check(SaveData.bag.size() == 1 and SaveData.memories.size() == memories_before, "replay leaves the save alone")

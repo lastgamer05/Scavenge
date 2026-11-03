@@ -28,7 +28,9 @@ static var quest_given := false
 static var memories: Array = []  # memory ids unlocked (see Story.MEMORIES)
 static var flashbacks_seen: Array = []
 static var tutorial := 0  # first-visit hideout tutorial step (see Hideout.TUTORIAL)
-static var next_raid := "ruins"  # ruins or prologue
+static var next_raid := "outskirts"  # a Zones id, or prologue
+static var zone_extracts: Dictionary = {}  # zone id -> successful extractions there
+static var combat_tutorial := false  # the first raid's combat lesson has been finished
 static var prologue_replay := false  # watching the prologue again: nothing is saved (not persisted)
 
 
@@ -57,6 +59,10 @@ static func ensure_loaded() -> void:
 	flashbacks_seen = Array(data.get("flashbacks_seen", []))
 	# Saves from before the tutorial existed skip it once Toa has been out at least once.
 	tutorial = int(data.get("tutorial", 99 if raids > 0 else 0))
+	# Saves from before the zones existed already know the ruins and how to fight.
+	var ze = data.get("zone_extracts", {"outskirts": 1} if raids > 0 else {})
+	zone_extracts = ze if typeof(ze) == TYPE_DICTIONARY else {}
+	combat_tutorial = bool(data.get("combat_tutorial", raids > 0))
 	var s: Array = data.get("slots", [null, null])
 	slots = [_item_in(s[0]) if s.size() > 0 else null, _item_in(s[1]) if s.size() > 1 else null]
 
@@ -78,7 +84,9 @@ static func _reset() -> void:
 	memories = []
 	flashbacks_seen = []
 	tutorial = 0
-	next_raid = "ruins"
+	zone_extracts = {}
+	combat_tutorial = false
+	next_raid = "outskirts"
 
 
 static func save() -> void:
@@ -88,7 +96,7 @@ static func save() -> void:
 		"stash": stash, "bag": bag, "pouch": pouch, "slots": slots,
 		"prologue_done": prologue_done, "intro_pending": intro_pending, "quest": quest,
 		"quest_given": quest_given, "memories": memories, "flashbacks_seen": flashbacks_seen,
-		"tutorial": tutorial}
+		"tutorial": tutorial, "zone_extracts": zone_extracts, "combat_tutorial": combat_tutorial}
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(data))
@@ -161,7 +169,7 @@ static func finish_prologue() -> void:
 	bag = []
 	slots = [null, null]
 	pouch = [ItemDB.make("core")]
-	next_raid = "ruins"
+	next_raid = "outskirts"
 	save()
 
 
@@ -170,10 +178,12 @@ static func record_raid(extracted: bool, bag_grid: InvGrid, pouch_grid: InvGrid,
 	raids += 1
 	if extracted:
 		extracts += 1
+		if Zones.index_of(next_raid) >= 0:
+			zone_extracts[next_raid] = int(zone_extracts.get(next_raid, 0)) + 1
 		store_loadout(bag_grid, pouch_grid, slot_items)
 	else:
 		bag = []
 		slots = [null, null]
 		pouch = pouch_grid.items.duplicate(true)
-	last_result = {"extracted": extracted, "value": value}
+	last_result = {"extracted": extracted, "value": value, "zone": next_raid}
 	save()
