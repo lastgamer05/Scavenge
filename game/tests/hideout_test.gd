@@ -160,18 +160,19 @@ func _test_sortie_menu(h) -> void:
 
 
 func _test_reset_code(h) -> void:
+	var prompt: ResetPrompt = h.get_children().filter(func(n): return n is ResetPrompt)[0]
 	for d in [0, 0, 0, 0]:
 		var ev := InputEventKey.new()
 		ev.physical_keycode = KEY_0 + d
 		ev.pressed = true
-		h._unhandled_input(ev)
-	_check(h.confirming_reset and h.hud.dialog_panel.visible, "typing 0000 asks before wiping the save")
+		prompt._unhandled_input(ev)
+	_check(prompt.is_open(), "typing 0000 asks before wiping the save")
 	var money := SaveData.money
 	var esc := InputEventAction.new()
 	esc.action = "ui_cancel"
 	esc.pressed = true
-	h._unhandled_input(esc)
-	_check(not h.confirming_reset and SaveData.money == money, "Esc keeps the save")
+	prompt._unhandled_input(esc)
+	_check(not prompt.is_open() and SaveData.money == money, "Esc keeps the save")
 	SaveData.money = 999
 	SaveData.zone_extracts = {"outskirts": 2}
 	SaveData.wipe()

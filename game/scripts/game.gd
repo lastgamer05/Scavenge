@@ -144,6 +144,7 @@ func _ready() -> void:
 		tutorial = CombatTutorial.new()
 		add_child(tutorial)
 		tutorial.setup(self)
+	add_child(ResetPrompt.new())
 
 
 func _process(delta: float) -> void:

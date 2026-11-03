@@ -68,7 +68,6 @@ var dialog_i := 0
 var exit_cells: Array = []
 var secret := ""  # last digits typed; the vault code from the prologue replays it
 var picking := false  # the sortie menu is open at the tunnel
-var confirming_reset := false  # RESET_CODE typed: waiting for E (wipe) or Esc
 var tutorial_arrow: PointerArrow
 
 
@@ -138,6 +137,7 @@ func _ready() -> void:
 	inventory.game = self
 	hud.add_child(inventory)
 	_apply_level()
+	add_child(ResetPrompt.new())
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if not SaveData.prologue_done:
 		# A fresh save starts at ground zero, not here.
@@ -258,15 +258,11 @@ func _npc(role: String) -> Npc:
 
 
 const REPLAY_CODE := "0719"
-const RESET_CODE := "0000"  # wipes the save after a confirmation
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if picking:
 		_picker_input(event)
-		return
-	if confirming_reset:
-		_reset_input(event)
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var digit := _digit_of(event)
@@ -276,13 +272,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				secret = ""
 				SaveData.prologue_replay = true
 				_start_raid("prologue")
-				get_viewport().set_input_as_handled()
-				return
-			if secret == RESET_CODE:
-				secret = ""
-				_end_dialog()
-				confirming_reset = true
-				hud.show_dialog("기록 초기화", "돈, 보관함, 스토리, 열린 지역까지 전부 지우고 프롤로그부터 다시 시작한다.\nE  초기화      Esc  취소")
 				get_viewport().set_input_as_handled()
 				return
 	if event.is_action_pressed("inventory"):
@@ -377,20 +366,6 @@ func _picker_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
 		_close_picker()
 		get_viewport().set_input_as_handled()
-
-
-func _reset_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact"):
-		confirming_reset = false
-		hud.hide_dialog()
-		SaveData.wipe()
-		get_tree().reload_current_scene()  # a fresh save starts at the prologue
-	elif event.is_action_pressed("ui_cancel"):
-		confirming_reset = false
-		hud.hide_dialog()
-	else:
-		return
-	get_viewport().set_input_as_handled()
 
 
 func _close_picker() -> void:
