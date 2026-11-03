@@ -44,12 +44,17 @@ func _process(_delta: float) -> bool:
 			var pad: Array = game.level.extract_groups["gate"]
 			p.global_position = game.level.cell_to_world(pad[0])
 		10:
-			_check(d.stage == "bombing", "stepping on the helipad starts the bombing")
+			_check(d.stage == "cutscene", "stepping on the helipad starts the rooftop cutscene")
+			_check(not game.hud.visible and game.cam_focus != null, "cutscene hides the HUD and takes the camera")
 			# Fast-forward the cutscene instead of waiting real seconds.
-			for i in 12:
-				d._tick_bombing(0.5)
-			_check(d.stage in ["after", "done"], "bombing fades into the aftermath: " + d.stage)
+			for i in 60:
+				d.tick_cutscene(0.4)
+				if i == 39:
+					_check(d.dots.size() > 0, "target designators light up before the strike")
+			_check(d.stage == "after", "cutscene fades into the aftermath: " + d.stage)
 			_check(d.allies.all(func(a): return a.down), "teammates fall in the bombing")
+			_check(not d.allies.has(d.leon), "Leon is gone before the bombs land")
+			_check(Engine.time_scale == 1.0, "slow motion ends")
 			d.finish()
 			_check(SaveData.prologue_done and SaveData.intro_pending, "prologue marked done, intro queued")
 			_check(SaveData.pouch.size() == 1 and SaveData.pouch[0]["id"] == "core", "Toa wakes with only the core in the pouch")

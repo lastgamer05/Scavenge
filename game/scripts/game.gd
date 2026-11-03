@@ -35,6 +35,9 @@ var extracted_value := 0
 var extracted_count := 0
 var mode := "ruins"
 var director: PrologueDirector = null
+var cam_focus = null  # Vector2 while a cutscene owns the camera, else null
+var cam_zoom := 2.0
+var hide_roofs := false  # cutscenes lift every roof so nothing important is hidden
 
 
 func _ready() -> void:
@@ -140,8 +143,14 @@ func _process(delta: float) -> void:
 	if mode == "ruins" and inside >= 0:
 		_check_flashback(inside)
 	for roof in level.roofs:
-		roof.target_alpha = 0.0 if roof.index == inside else 1.0
+		roof.target_alpha = 0.0 if hide_roofs or roof.index == inside else 1.0
 
+	shake = maxf(0.0, shake - delta * 30.0)
+	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
+	if cam_focus != null:
+		camera.position = cam_focus
+		camera.zoom = Vector2.ONE * move_toward(camera.zoom.x, cam_zoom, delta * 0.8)
+		return
 	# Zoom in indoors; look-ahead toward the cursor, computed in screen space to avoid camera feedback.
 	var zoom_target := ZOOM_INDOOR if inside >= 0 else ZOOM_OUTDOOR
 	var zoom := move_toward(camera.zoom.x, zoom_target, delta * 1.2)
@@ -150,8 +159,6 @@ func _process(delta: float) -> void:
 	var screen_off := vp.get_mouse_position() - vp.get_visible_rect().size * 0.5
 	var look := 0.75 if Input.is_action_pressed("look") else 0.3
 	camera.position = player.global_position + screen_off / zoom * look
-	shake = maxf(0.0, shake - delta * 30.0)
-	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
 
 
 ## Toa enters the raid with whatever the hideout packed.

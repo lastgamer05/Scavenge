@@ -13,6 +13,9 @@ var rig: CharacterRig
 var facing := 0.0
 var fire_t := 0.0
 var down := false
+var hold_pos = null  # Vector2: stop following and stand here instead
+var path := PackedVector2Array()
+var path_i := 0
 
 
 func _ready() -> void:
@@ -44,6 +47,12 @@ func _physics_process(delta: float) -> void:
 	fire_t -= delta
 	var target := _visible_enemy()
 	var goal: Vector2 = game.player.global_position + follow_offset.rotated(game.player.aim)
+	if hold_pos != null:
+		goal = hold_pos
+	while path_i < path.size() and global_position.distance_to(path[path_i]) < 8.0:
+		path_i += 1
+	if path_i < path.size():
+		goal = path[path_i]
 	var to_goal := goal - global_position
 	velocity = to_goal.normalized() * SPEED if to_goal.length() > 18.0 else Vector2.ZERO
 	move_and_slide()
@@ -68,6 +77,13 @@ func _visible_enemy() -> Node2D:
 			best = e
 			best_d = d
 	return best
+
+
+## Walk to a point along the map's paths (used when the script moves Leon around).
+func walk_to(pos: Vector2) -> void:
+	hold_pos = pos
+	path = game.level.find_path(global_position, pos)
+	path_i = 0
 
 
 ## The bombing: the teammate falls.
