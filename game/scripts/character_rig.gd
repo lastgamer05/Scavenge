@@ -28,8 +28,8 @@ var lying := false
 
 func _init(body_key: String) -> void:
 	key = body_key
-	sheet = ResourceLoader.exists(SHEET_DIR + key + "_unarmed.png")
 	animated = ResourceLoader.exists(SHEET_DIR + key + "_idle.png")
+	sheet = animated or ResourceLoader.exists(SHEET_DIR + key + "_unarmed.png")
 	body = Sprite2D.new()
 	body.scale = Vector2.ONE * SCALE
 	var b: float = BRIGHTNESS.get(key, 1.0)
@@ -44,6 +44,12 @@ func _init(body_key: String) -> void:
 	if not sheet:
 		body.texture = PixelArt.texture(key if key in ["toa", "centra"] else "scav:0")
 	show_weapon("")
+
+
+## Shows a named frame directly (NPC moods); ignored for characters without sheets.
+func set_frame(name: String) -> void:
+	if animated and not lying:
+		_set_frame(name)
 
 
 func _set_frame(name: String) -> void:

@@ -9,12 +9,18 @@ var role := "junk"
 var hideout: Node
 var counter: LootContainer = null  # trade grid shown next to Toa's bag
 var rig: CharacterRig
+var mood := "idle"  # idle, work, alt: what the NPC does while nobody talks to them
+var mood_t := 0.0
+var talk_t := 0.0
 
 
 func _ready() -> void:
 	add_to_group("npcs")
-	rig = CharacterRig.new("npc:" + role)
-	rig.rotation = PI * 0.5
+	var sheet_key := "npc_" + role
+	rig = CharacterRig.new(sheet_key if ResourceLoader.exists("res://assets/sprites/%s_idle.png" % sheet_key) else "npc:" + role)
+	mood_t = randf_range(1.0, 4.0)
+	# Drawn sheets keep the facing they were drawn with; procedural bodies face down.
+	rig.rotation = 0.0 if rig.animated else PI * 0.5
 	add_child(rig)
 	var label := Label.new()
 	label.text = NAMES[role]
@@ -36,8 +42,22 @@ func interact() -> void:
 	hideout.talk_to(self)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# Turn to face Toa when close.
 	var p: Node2D = hideout.player
-	if p.global_position.distance_to(global_position) < 160.0:
+	if not rig.animated and p.global_position.distance_to(global_position) < 160.0:
 		rig.rotation = rotate_toward(rig.rotation, (p.global_position - global_position).angle(), 0.08)
+	var talking: bool = hideout.dialog_npc == self or (counter != null and hideout.inventory.visible
+		and hideout.inventory.other == counter)
+	if talking:
+		# Gesture on and off while the conversation or trade is open.
+		talk_t += delta
+		rig.set_frame("talk" if int(talk_t / 0.6) % 2 == 0 else "idle")
+		return
+	talk_t = 0.0
+	mood_t -= delta
+	if mood_t <= 0.0:
+		var roll := randf()
+		mood = "work" if roll < 0.35 else ("alt" if roll < 0.55 else "idle")
+		mood_t = randf_range(2.0, 5.0)
+	rig.set_frame(mood)
