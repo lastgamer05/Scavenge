@@ -5,6 +5,7 @@ extends CanvasLayer
 var hideout: Node
 var info_label: Label
 var prompt_label: Label
+var tutorial_label: Label
 var toast_label: Label
 var dialog_panel: PanelContainer
 var dialog_name: Label
@@ -23,6 +24,11 @@ func _ready() -> void:
 	toast_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_label.anchor_top = 0.1
+	tutorial_label = _label(22)
+	tutorial_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tutorial_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tutorial_label.anchor_top = 0.03
+	tutorial_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 
 	dialog_panel = PanelContainer.new()
 	var style := StyleBoxFlat.new()

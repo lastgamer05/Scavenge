@@ -24,6 +24,32 @@ const LINES := {
 	],
 }
 
+## First visit: buy a bat from Gor, hear three short lines on how raids work, head out.
+const TUTORIAL := ["무기상 고르에게 말을 걸자", "야구방망이를 사서 무기 칸에 끼우자", "동쪽 터널로 출격하자"]
+const TUTORIAL_TIPS := [
+	"방망이는 조용하고 한 방이다. 총은 세지만 시끄러워서 다 몰려온다.",
+	"맞으면 체력이 깎인다. 방탄판(F)과 의약품(G)을 챙겨 가.",
+	"죽으면 가방은 다 잃는다. 탈출 지점까지 살아서 와야 네 거다.",
+]
+
+## Bobbing arrow over whatever the tutorial wants Toa to walk to.
+class TutorialArrow extends Node2D:
+	var t := 0.0
+
+	func _ready() -> void:
+		z_index = 20
+
+	func _process(delta: float) -> void:
+		t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var y := -44.0 + sin(t * 5.0) * 4.0
+		var col := Color(1.0, 0.9, 0.3)
+		draw_colored_polygon(PackedVector2Array([Vector2(0, y + 10), Vector2(-8, y), Vector2(8, y)]), col)
+		draw_rect(Rect2(-3, y - 10, 6, 10), col)
+
+
 ## The Bapas terminal the core is plugged into. Shows every decoded file and recording.
 class Decoder extends Node2D:
 	var hideout: Node
@@ -58,6 +84,7 @@ var dialog_lines: Array = []
 var dialog_i := 0
 var exit_cells: Array = []
 var secret := ""  # last digits typed; the vault code from the prologue replays it
+var tutorial_arrow: TutorialArrow
 
 
 func _ready() -> void:
@@ -117,6 +144,8 @@ func _ready() -> void:
 	add_child(camera)
 	camera.make_current()
 
+	tutorial_arrow = TutorialArrow.new()
+	add_child(tutorial_arrow)
 	hud = HideoutHud.new()
 	hud.hideout = self
 	add_child(hud)
@@ -190,7 +219,8 @@ func _persist() -> void:
 func _report_last_raid() -> void:
 	var r: Dictionary = SaveData.last_result
 	if r.is_empty():
-		hud.toast("바파스 거점. 리더에게 말을 걸어 보자.")
+		if SaveData.tutorial >= TUTORIAL.size():
+			hud.toast("바파스 거점. 리더에게 말을 걸어 보자.")
 	elif r["extracted"]:
 		hud.toast("귀환 성공 — $%d 어치를 가져왔다" % r["value"])
 	else:
@@ -206,6 +236,35 @@ func _process(delta: float) -> void:
 		_end_dialog()
 	var on_exit := exit_cells.has(level.world_to_cell(player.global_position))
 	extract_t = extract_t + delta if on_exit else 0.0
+	_tick_tutorial()
+
+
+func _tick_tutorial() -> void:
+	var step := SaveData.tutorial
+	var dealer := _npc("weapons")
+	if step == 0 and inventory.visible and inventory.other == dealer.counter:
+		_advance_tutorial()
+	elif step == 1 and not inventory.visible and player.slots.any(func(w): return w != null and w["id"] == "bat"):
+		_advance_tutorial()
+		_open_dialog(dealer, TUTORIAL_TIPS.map(func(l): return [dealer.title(), l]))
+	step = SaveData.tutorial
+	var showing := step < TUTORIAL.size() and dialog_npc == null and SaveData.prologue_done
+	hud.tutorial_label.text = "▶ " + TUTORIAL[step] if showing else ""
+	tutorial_arrow.visible = showing and not inventory.visible
+	if showing:
+		tutorial_arrow.position = level.cell_to_world(exit_cells[0]) if step == 2 else dealer.global_position
+
+
+func _advance_tutorial() -> void:
+	SaveData.tutorial += 1
+	_persist()
+
+
+func _npc(role: String) -> Npc:
+	for n in get_tree().get_nodes_in_group("npcs"):
+		if n is Npc and n.role == role:
+			return n
+	return null
 
 
 const REPLAY_CODE := "0719"
@@ -290,6 +349,8 @@ func interact() -> void:
 
 
 func _start_raid(which: String) -> void:
+	if which == "ruins" and SaveData.tutorial == TUTORIAL.size() - 1:
+		SaveData.tutorial += 1
 	_persist()
 	SaveData.next_raid = which
 	Engine.time_scale = 1.0
@@ -297,10 +358,7 @@ func _start_raid(which: String) -> void:
 
 
 func _leader() -> Npc:
-	for n in get_tree().get_nodes_in_group("npcs"):
-		if n is Npc and n.role == "leader":
-			return n
-	return null
+	return _npc("leader")
 
 
 func talk_to(npc: Npc) -> void:

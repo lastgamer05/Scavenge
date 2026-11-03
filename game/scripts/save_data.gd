@@ -27,6 +27,7 @@ static var quest := 0  # index into Story.QUESTS
 static var quest_given := false
 static var memories: Array = []  # memory ids unlocked (see Story.MEMORIES)
 static var flashbacks_seen: Array = []
+static var tutorial := 0  # first-visit hideout tutorial step (see Hideout.TUTORIAL)
 static var next_raid := "ruins"  # ruins or prologue
 static var prologue_replay := false  # watching the prologue again: nothing is saved (not persisted)
 
@@ -54,6 +55,8 @@ static func ensure_loaded() -> void:
 	quest_given = bool(data.get("quest_given", false))
 	memories = Array(data.get("memories", []))
 	flashbacks_seen = Array(data.get("flashbacks_seen", []))
+	# Saves from before the tutorial existed skip it once Toa has been out at least once.
+	tutorial = int(data.get("tutorial", 99 if raids > 0 else 0))
 	var s: Array = data.get("slots", [null, null])
 	slots = [_item_in(s[0]) if s.size() > 0 else null, _item_in(s[1]) if s.size() > 1 else null]
 
@@ -74,6 +77,7 @@ static func _reset() -> void:
 	quest_given = false
 	memories = []
 	flashbacks_seen = []
+	tutorial = 0
 	next_raid = "ruins"
 
 
@@ -83,7 +87,8 @@ static func save() -> void:
 	var data := {"money": money, "donated": donated, "raids": raids, "extracts": extracts,
 		"stash": stash, "bag": bag, "pouch": pouch, "slots": slots,
 		"prologue_done": prologue_done, "intro_pending": intro_pending, "quest": quest,
-		"quest_given": quest_given, "memories": memories, "flashbacks_seen": flashbacks_seen}
+		"quest_given": quest_given, "memories": memories, "flashbacks_seen": flashbacks_seen,
+		"tutorial": tutorial}
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(data))

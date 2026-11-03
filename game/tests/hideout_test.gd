@@ -28,6 +28,27 @@ func _npc(role: String) -> Npc:
 	return null
 
 
+func _test_tutorial(h, p: Player) -> void:
+	SaveData.tutorial = 0
+	h._end_dialog()
+	h._tick_tutorial()
+	_check(h.hud.tutorial_label.text != "" and h.tutorial_arrow.visible, "first visit shows the tutorial hint and arrow")
+	var dealer: Npc = _npc("weapons")
+	h.inventory.open(dealer.counter)
+	h._tick_tutorial()
+	_check(SaveData.tutorial == 1, "opening Gor's counter advances the tutorial")
+	p.slots[0] = ItemDB.make("bat")
+	h._close_inventory()
+	h._tick_tutorial()
+	_check(SaveData.tutorial == 2 and h.dialog_npc == dealer, "a bat in hand: Gor explains the basics")
+	h._end_dialog()
+	h._tick_tutorial()
+	_check(h.tutorial_arrow.position == h.level.cell_to_world(h.exit_cells[0]), "then the arrow points at the tunnel")
+	SaveData.tutorial = 99
+	h._tick_tutorial()
+	_check(h.hud.tutorial_label.text == "" and not h.tutorial_arrow.visible, "finished tutorial stays hidden")
+
+
 func _process(_delta: float) -> bool:
 	frame += 1
 	if frame != 5:
@@ -71,6 +92,7 @@ func _process(_delta: float) -> bool:
 	_check(SaveData.bag.size() == 1 and SaveData.slots[0]["id"] == "smg", "extraction keeps the loadout")
 	_check(SaveData.raids == 2 and SaveData.extracts == 1, "raid counters")
 
+	_test_tutorial(h, p)
 	_test_story(h, p)
 	_test_replay_code(h)
 	print("hideout finished: %d failure(s)" % failures)
