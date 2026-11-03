@@ -9,6 +9,7 @@ var sprite_rect := Rect2()
 
 func setup(level: Level, door_cells: Array) -> void:
 	cells = door_cells
+	add_to_group("doors")
 	collision_layer = 1
 	collision_mask = 0
 	var lo := Vector2(door_cells[0]) * Level.CELL

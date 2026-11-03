@@ -28,7 +28,8 @@ func _test_scripts_compile() -> void:
 			"res://scripts/extract_zone.gd", "res://scripts/save_data.gd", "res://scripts/hideout.gd",
 			"res://scripts/hideout_hud.gd", "res://scripts/npc.gd", "res://scripts/pixel_art.gd",
 			"res://scripts/character_rig.gd", "res://scripts/story.gd", "res://scripts/ally.gd",
-			"res://scripts/door.gd", "res://scripts/story_marker.gd", "res://scripts/prologue_director.gd"]:
+			"res://scripts/door.gd", "res://scripts/story_marker.gd", "res://scripts/prologue_director.gd",
+			"res://scripts/vision.gd"]:
 		var s := load(path) as Script
 		_check(s != null and s.can_instantiate(), "script does not compile: " + path)
 	_check(load("res://scenes/main.tscn") is PackedScene, "main scene does not load")

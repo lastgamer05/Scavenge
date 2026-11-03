@@ -63,6 +63,38 @@ class ZoneMarkers extends Control:
 		draw_colored_polygon(PackedVector2Array([tip, edge + dir.rotated(2.5) * 10.0, edge + dir.rotated(-2.5) * 10.0]), col)
 		draw_string(font, edge - dir * 22.0 + Vector2(-60, 4), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 11, col)
 
+class SoundPings extends Control:
+	## Arcs around Toa pointing at what she hears but cannot see: gunshots loud and red,
+	## footsteps faint and grey. Each keeps its world position, so the arc turns as she moves.
+	const LIFE := {true: 1.2, false: 0.5}
+	var hud: Hud
+	var pings: Array = []  # [world pos, loud, time left]
+
+	func _process(delta: float) -> void:
+		for pg in pings:
+			pg[2] -= delta
+		pings = pings.filter(func(pg): return pg[2] > 0.0)
+		queue_redraw()
+
+	func _draw() -> void:
+		var game = hud.game
+		if game.state != "play" or game.inventory.visible:
+			return
+		var xf := get_viewport().get_canvas_transform()
+		var me: Vector2 = xf * game.player.global_position
+		for pg in pings:
+			var loud: bool = pg[1]
+			var k: float = pg[2] / LIFE[loud]
+			var a: float = (xf * (pg[0] as Vector2) - me).angle()
+			var col := Color(1.0, 0.45, 0.35, 0.9 * k) if loud else Color(0.85, 0.85, 0.85, 0.5 * k)
+			var r := 64.0 if loud else 52.0
+			draw_arc(me, r, a - 0.3, a + 0.3, 12, col, 4.0 if loud else 2.0)
+			if loud:
+				var tip := me + Vector2.from_angle(a) * (r + 10.0)
+				draw_colored_polygon(PackedVector2Array([tip, me + Vector2.from_angle(a - 0.12) * (r + 2.0),
+					me + Vector2.from_angle(a + 0.12) * (r + 2.0)]), col)
+
+
 var game: Node
 var subtitle_label: Label
 var subtitle_t := 0.0
@@ -73,6 +105,7 @@ var prompt_label: Label
 var center_label: Label
 var toast_label: Label
 var toast_t := 0.0
+var pings: SoundPings
 
 
 func _ready() -> void:
@@ -108,6 +141,11 @@ func _ready() -> void:
 	markers.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	markers.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(markers)
+	pings = SoundPings.new()
+	pings.hud = self
+	pings.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pings.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(pings)
 	var cross := Crosshair.new()
 	cross.hud = self
 	cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -138,6 +176,11 @@ func _centered(font_size: int, y_ratio: float) -> Label:
 func say(who: String, text: String) -> void:
 	subtitle_label.text = "%s: %s" % [who, text]
 	subtitle_t = 5.0
+
+
+## Something Toa heard but cannot see; loud for gunshots, quiet for footsteps.
+func ping(pos: Vector2, loud: bool) -> void:
+	pings.pings.append([pos, loud, SoundPings.LIFE[loud]])
 
 
 func toast(text: String) -> void:

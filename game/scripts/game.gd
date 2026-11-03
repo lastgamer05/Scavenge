@@ -19,6 +19,7 @@ var camera: Camera2D
 var hud: Hud
 var inventory: InventoryUI
 var roof_layer: Node2D
+var vision: Vision
 var player_light: PointLight2D
 var active_zone: ExtractZone = null
 var time_left := RAID_TIME
@@ -62,6 +63,9 @@ func _ready() -> void:
 	add_child(entities)
 	fx_layer = Node2D.new()
 	add_child(fx_layer)
+	vision = Vision.new()
+	vision.setup(self, level)
+	add_child(vision)
 	roof_layer = Node2D.new()
 	add_child(roof_layer)
 	level.build(roof_layer)
@@ -430,9 +434,12 @@ func has_los(a: Vector2, b: Vector2) -> bool:
 	return get_world_2d().direct_space_state.intersect_ray(q).is_empty()
 
 
-## Noise travels through walls at reduced range.
+## Noise travels through walls at reduced range. Toa only hears where an unseen enemy shot from.
 func make_noise(pos: Vector2, radius: float, source: Node) -> void:
-	if radius >= 150.0:
+	if source is Enemy and not vision.can_see(source):
+		if player.global_position.distance_to(pos) < radius * 1.6:
+			hud.ping(pos, true)
+	elif radius >= 150.0:
 		spawn_fx("noise", pos, radius, 0.5)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e == source or e.is_dead():
